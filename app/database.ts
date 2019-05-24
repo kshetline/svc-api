@@ -22,17 +22,17 @@ thePool.getConnection((err, connection) => {
   }
 
   if (connection)
-    connection.release()
+    connection.release();
 });
 
 thePool.on('connection', connection => {
   connection.query("SET NAMES 'utf8'");
 });
 
-export type FullQueryResults = {
+export interface FullQueryResults {
   err: MysqlError | null;
   results: any;
-  fields: FieldInfo[]
+  fields: FieldInfo[];
 }
 
 export const pool = {

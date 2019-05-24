@@ -3,6 +3,7 @@ import { https } from 'follow-redirects';
 
 import { asyncHandler, notFoundForEverythingElse, toInt } from './common';
 import { pool } from './database';
+import './gazetteer';
 
 export const router = Router();
 
@@ -35,8 +36,8 @@ async function initFlagCodes() {
   return new Promise<any>((resolve, reject) => {
     https.get('https://skyviewcafe.com/assets/resources/flags/', res => {
       if (res.statusCode === 200) {
-        res.on('data', (d: Buffer) => {
-          const lines = d.toString('utf8').split(/\r\n|\n|\r/);
+        res.on('data', (data: Buffer) => {
+          const lines = data.toString('utf8').split(/\r\n|\n|\r/);
 
           lines.forEach(line => {
             const match = />(\w+)\.png</.exec(line);

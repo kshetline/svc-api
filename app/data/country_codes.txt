@@ -1,0 +1,264 @@
+Afghanistan                                     AF      AFG     004 +270 00 Afghanistan, Islamic Republic of;Afghanistan, Islamic Republic of
+Aland Islands                                   AX      ALA     248 +120 27
+Albania                                         AL      ALB     008 +060 27 Shqipëria
+Algeria                                         DZ AG   DZA     012 +060 00 Al-Jaza'ir
+American Samoa                                  AS AN   ASM     016 -660 00
+Andorra                                         AD      AND     020 +060 27
+Angola                                          AO      AGO     024 +060 00
+Anguilla                                        AI AV   AIA     660 -240 00
+Antarctica                                      AQ AY   ATA     010 +000 00
+Antigua and Barbuda                             AG AC   ATG     028 -240 00 Antigua y Barbuda
+Argentina                                       AR      ARG     032 -180 00
+Armenia                                         AM      ARM     051 +240 27 Hayastan
+Aruba                                           AW AA   ABW     533 +240 27
+Australia                                       AU AS   AUS     036 **** **
+Austria                                         AT AU   AUT     040 +060 27 Österreich
+Azerbaijan                                      AZ AJ   AZE     031 +240 27 Azarbaycan
+Bahamas                                         BS BF   BHS     044 -300 2D
+Bahrain                                         BH BA   BHR     048 +180 00 Al-Bahrayn
+Bangladesh                                      BD BG   BGD     050 +360 00 Bamladesh
+Barbados                                        BB      BRB     052 -240 00
+Belarus                                         BY BO   BLR     112 +120 27 Bielorus';Belorussia
+Belgium                                         BE      BEL     056 +060 27 België
+Belize                                          BZ BH   BLZ     084 -360 00
+Benin                                           BJ BN   BEN     204 +060 00 Bénin
+Bermuda                                         BM BD   BMU     060 -240 2D
+Bhutan                                          BT      BTN     064 +360 00 Druk Yul;Druk-Yul
+Bolivia                                         BO BL   BOL     068 -240 00
+Bonaire                                         BQ      BES     535 -240 00 Bonaire, Saint Eustatius and Saba
+Bosnia and Hercegovina                          BA BK   BIH     070 +060 27 Bosna i Hercegovina;Bosnia and Herzegovina
+Botswana                                        BW BC   BWA     072 +000 00
+Bouvet Island                                   BV      BVT     074 +000 00
+Brazil                                          BR      BRA     076 -180*23 Brasil
+British Indian Ocean Territory                  IO      IOT     086 +300 00
+Brunei                                          BN BX   BRN     096 +480 00 Brunei Darussalam
+Bulgaria                                        BG BU   BGR     100 +120 27 Balgarija
+Burkina Faso                                    BF UV   BFA     854 +000 00
+Burundi                                         BI BY   BDI     108 +120 00
+Cambodia                                        KH CB   KHM     116 +420 00 Kâmpuchéa;Kampuchea
+Cameroon                                        CM      CMR     120 +060 00 Cameroun;République du Cameroun
+Canada                                          CA      CAN     124 **** **
+Cape Verde                                      CV      CPV     132 -060 00 Cabo Verde;República de Cabo Verde
+Cayman Islands                                  KY CJ   CYM     136 -300 00
+Central African Republic                        CF CT   CAF     140 +060 00 République centrafricaine
+Chad                                            TD CD   TCD     148 +060 00 Tchad
+Chile                                           CL CI   CHL     152 -240*24
+China                                           CN CH   CHN     156 +480 00 Zhonghua
+Christmas Island                                CX KT   CXR     162 +420 00
+Clipperton Island                               IP      ICP         -420 00 Île Clipperton
+Cocos Islands                                   CC CK   CCK     166 +390 00
+Colombia                                        CO      COL     170 -300 00
+Comoros                                         KM CN   COM     174 +180 00 Union des Comores;Comores
+Cook Islands                                    CK CW   COK     184 -600 00
+Costa Rica                                      CR CS   CRI     188 -600 00
+Côte d'Ivoire                                   CI IV   CIV     384 +000 00 Ivory Coast
+Croatia                                         HR      HRV     191 +060 27 Hrvatska
+Cuba                                            CU      CUB     192 -300 25
+Curacao                                         CW      CUW     531 -240 00
+Cyprus                                          CY      CYP     196 +120 27 Kýpros;Kípros
+Czech Republic                                  CZ EZ   CZE     203 +060 27 Ceská Republika 
+Democratic Republic of the Congo                CD ZR   COD     178 **** ** Congo;Congo, Democratic Republic of the;Congo, République Démocratique du;République démocratique du Congo
+Denmark                                         DK DA   DNK     208 +060 27 Danmark
+Djibouti                                        DJ      DJI     262 +180 00
+Dominica                                        DM DO   DMA     212 -240 00
+Dominican Republic                              DO DR   DOM     214 -240 00 República Dominicana
+East Timor                                      TL      TLS     626 +540 00 Timor-Leste
+Ecuador                                         EC      ECU     218 **** **
+Egypt                                           EG      EGY     818 +120 26 Misr
+El Salvador                                     SV ES   SLV     222 -360 00
+Equatorial Guinea                               GQ EK   GNQ     226 +060 00 Guinea Ecuatorial
+Erehwon                                         NM      NML         +000 00
+Eritrea                                         ER      ERI     232 +180 00
+Estonia                                         EE EN   EST     233 +120 27 Eesti
+Ethiopia                                        ET      ETH     231 +180 00 Ityop'iya
+Europa Island                                   EU      IEU         +180 00 Île Europa
+Falkland Islands                                FK      FLK     238 -240 28 Malvinas Islands;Falklands;Malvinas
+Faroe Islands                                   FO      FRO     234 +000 27 Føroyar;Faeroe Islands
+Fiji                                            FJ      FJI     242 +720 29
+Finland                                         FI      FIN     246 +120 27 Suomi
+France                                          FR      FRA     250 +060 27
+France, Metropolitan                            FX      FXX     249 +060 27
+French Guiana                                   GF FG   GUF     254 -180 00 Guyane française
+French Polynesia                                PF FP   PYF     258 -600 00 Polynésie française
+French Southern and Antarctic Territories       TF FS   ATF!    260 +300 00 Terres Australes Françaises
+French Southern Territories                     TF FS   ATF     260 +300 00 Terres Australes Françaises
+Gabon                                           GA GB   GAB     266 +060 00
+Gambia                                          GM GA   GMB     270 +000 00
+Gaza Strip                                      GZ      WE-         +120 2H
+Georgia                                         GE GG   GEO     268 +300 27 Sak'art'velo;Sakartvelo
+Germany                                         DE GMGE DEU     276 +060 27 Deutschland
+Ghana                                           GH      GHA     288 +000 00
+Gibraltar                                       GI      GIB     292 +060 27 Gibraltar dependent state
+Glorioso Islands                                GO      IGO     450 +180 00 Îles Glorieuses
+Greece                                          GR      GRC     300 +120 27 Ellás
+Greenland                                       GL      GRL     304 -180 27 Grønland
+Grenada                                         GD GJ   GRD     308 -240 00
+Guadeloupe                                      GP      GLP     312 -240 00
+Guam                                            GU      GUM     316 +600 00
+Guatemala                                       GT      GTM     320 -360 00
+Guernsey                                        GG      GGY     831 +000 27 Bailiwick of Guernsey
+Guinea                                          GN GV   GIN     324 +000 00 Guinée
+Guinea-Bissau                                   GW PU   GNB     624 +000 00 Guiné-Bissau
+Guyana                                          GY      GUY     328 -180 00
+Haiti                                           HT HA   HTI     332 -300 00 Haïti
+Heard and McDonald Islands                      HM      HMD     334 +300 20
+Honduras                                        HN HO   HND     340 -360 00
+Hong Kong                                       HK      HKG     344 +480 00 Xianggang
+Hungary                                         HU      HUN     348 +060 27 Magyarország
+Iceland                                         IS IC   ISL     352 +000 00 Ísland
+India                                           IN      IND     356 +330 00 Bharat
+Indonesia                                       ID      IDN     360 **** **
+Iran                                            IR      IRN     364 +210 00
+Iraq                                            IQ IZ   IRQ     368 +180 2A Al-`Iraq
+Ireland                                         IE EI   IRL     372 +000 27 Republic of Ireland;Éire
+Isle of Man                                     IM      IOM         +000 27
+Israel                                          IL IS   ISR     376 +120 2G Yisra'el
+Italy                                           IT      ITA     380 +060 27 Italia
+Jamaica                                         JM      JAM     388 -300 00
+Jan Mayen                                       SJ SVJN SJM!    744 -060 27
+Japan                                           JP JA   JPN     392 +540 00 Nihon
+Jersey                                          JE      JEY     832 +000 27 Bailiwick of Jersey
+Jordan                                          JO      JOR     400 +120 ?? Al-Urdun
+Juan de Nova Island                             JU      IJU         +180 00 Île Juan de Nova
+Kazakhstan                                      KZ      KAZ     398 **** 27 Qazaqstan
+Kenya                                           KE      KEN     404 +180 00
+Kiribati                                        KI KR   KIR     296 +780 00
+Kosovo                                          XK      XXK     381 +060 27
+Kuwait                                          KW KU   KWT     414 +180 00 Al Kuwayt
+Kyrgyzstan                                      KG      KGZ     417 +300 27
+Laos                                            LA      LAO     418 +420 00 Lao
+Latvia                                          LV LG   LVA     428 +120 27 Latvija
+Lebanon                                         LB LE   LBN     422 +120 27 Lubnan;Al-Lubnan 
+Lesotho                                         LS LT   LSO     426 +120 00
+Liberia                                         LR      LBR     430 +000 00
+Libya                                           LY      LBY     434 +120 00 Libiya
+Liechtenstein                                   LI LS   LIE     438 +060 27
+Lithuania                                       LT LH   LTU     440 +060 27 Lietuva
+Luxembourg                                      LU      LUX     442 +060 27
+Macau                                           MO MC   MAC     446 +480 00
+Macedonia                                       MK      MKD     807 +060 27 Makedonija
+Madagascar                                      MG MA   MDG     450 +180 00 Madagasikara
+Malawi                                          MW MI   MWI     454 +120 00
+Malaysia                                        MY      MYS     458 +480 00
+Maldives                                        MV      MDV     462 +300 00 Dhivehi Raajje
+Mali                                            ML      MLI     466 +000 00
+Malta                                           MT      MLT     470 +060 27
+Marshall Islands                                MH RM   MHL     584 -720 00
+Martinique                                      MQ MB   MTQ     474 -240 00
+Mauritania                                      MR      MRT     478 +000 00 Muritaniya
+Mauritius                                       MU MP   MUS     480 +400 00
+Mayotte                                         YT MF   MYT     175 +180 00
+Mexico                                          MX      MEX     484 **** 2I México
+Micronesia                                      FM      FSM     583 +660 00 Micronesia, Federated States of;Federated States of Micronesia
+Moldova                                         MD      MDA     498 +120 27
+Monaco                                          MC MN   MCO     492 +060 27
+Mongolia                                        MN MG   MNG     496 +480 27 Mongol;Mongol Uls
+Montenegro                                      ME MW   MNE         +060 27
+Montserrat                                      MS MH   MSR     500 -240 00
+Morocco                                         MA MO   MAR     504 +000 00 Al Maghrib;Al-Magreb
+Mozambique                                      MZ      MOZ     508 +120 00 Moçambique
+Myanmar                                         MM WA   MMR     104 +390 00 Myanma;Burma
+Namibia                                         NA      NAM     516 +060 2B
+Nauru                                           NR      NRU     520 +720 00
+Nepal                                           NP      NPL     524 +345 00
+Netherlands                                     NL      NLD     528 +060 27 Nederland
+Netherlands Antilles                            AN NT   ANT     530 -240 00 Nederlandse Antillen;Dutch West Indies
+New Caledonia                                   NC      NCL     540 +660 00 Nouvelle-Calédonie
+New Zealand                                     NZ      NZL     554 +720 2C
+Nicaragua                                       NI NU   NIC     558 -360 00
+Niger                                           NE NG   NER     562 +060 00
+Nigeria                                         NG NI   NGA     566 +060 00
+Niue                                            NU NE   NIU     570 -660 00
+Norfolk Island                                  NF      NFK     574 +690 00
+North Korea                                     KP KN   PRK     408 +540 00 Choson-minjujuui-inmin-konghwaguk;Choson;Choson M. I. K.
+Northern Mariana Islands                        MP      MNP     580 +600 00
+Norway                                          NO      NOR     578 +010 27 Norge
+Oman                                            OM MU   OMN     512 +240 00 `Uman
+Pakistan                                        PK      PAK     586 +300 00
+Palestinian Territory                           PS      PSE     275 +120 2H
+Palau                                           PW PS   PLW     585 +540 00 Belau
+Panama                                          PA PM   PAN     591 -300 00 Panamá
+Papua New Guinea                                PG PP   PNG     598 +600 00
+Paraguay                                        PY PA   PRY     600 -240 2E
+Peru                                            PE      PER     604 -300 00 Perú
+Philippines                                     PH RP   PHL     608 +480 00 Pilipinas
+Pitcairn                                        PN PC   PCN     612 -510 00 Pitcairn Islands
+Poland                                          PL      POL     616 +060 27 Polska
+Portugal                                        PT PO   PRT     620 +000 27
+Puerto Rico                                     PR      PRI     630 -240 00
+Qatar                                           QA      QAT     634 +180 00
+Republic of the Congo                           CG      COG     178 +060 00 Congo, République du;République du Congo
+Reunion                                         RE      REU     638 +240 00 Réunion
+Romania                                         RO      ROM     642 +120 27 România
+Russia                                          RU RSUR RUS     643 **** ** Russija;Rossiya
+Rwanda                                          RW      RWA     646 +120 00
+Saint Kitts and Nevis                           KN SC   KNA     659 -240 00
+Saint Lucia                                     LC ST   LCA     662 -240 00
+Saint Pierre and Miquelon                       PM      SPM     666 -180 2D St. Pierre et Miquelon
+Saint Vincent and the Grenadines                VC      VCT     670 -240 00 St. Vincent and the Grenadines 
+Samoa                                           WS      WSM     882  780 20 Western Samoa
+Saint Barthelemy                                BL      BLM     652 -240 00 Saint-Barthélemy
+San Marino                                      SM      SMR     674 +120 27
+Sao Tome and Principe                           ST TP   STP     678 +000 00 São Tomé e Príncipe
+Saudi Arabia                                    SA      SAU     682 +180 00 As Su`udiyah;Al-`Arabiyah as-Sa`udiyah
+Senegal                                         SN SG   SEN     686 +000 00 Sénégal
+Serbia                                          RS SR   SRB     688 +060 27
+Serbia and Montenegro                           YI      SCG         +060 27
+Seychelles                                      SC SE   SYC     690 +240 00 Sesel;Repiblik Sesel
+Sierra Leone                                    SL      SLE     694 +000 00
+Sint Maarten                                    SX      SXM     534 -240 00
+Singapore                                       SG SN   SGP     702 +480 00
+Slovakia                                        SK LO   SVK     703 +060 27 Slovensko;Slovenská Republika
+Slovenia                                        SI      SVN     705 +060 27 Slovenija
+Solomon Islands                                 SB BP   SLB     090 +660 00 Solomons
+Somalia                                         SO      SOM     706 +180 00 Soomaaliya
+South Africa                                    ZA SF   ZAF     710 +120 00
+South Georgia and the South Sandwich Islands    GS SX   SGS     239 -120 00
+South Korea                                     KR KS   KOR     410 +540 00 Taehan Min'guk
+Spain                                           ES SP   ESP     724 +060 27 España
+Sri Lanka                                       LK CE   LKA     144 +360 00 Shri Lamka
+Saint Helena                                    SH      SHN     654 +000 00
+Saint Martin                                    MF      MAF     663 -240 00 Northern Saint-Martin
+Sudan                                           SD SU   SDN     736 +120 00 As-Sudan
+Suriname                                        SR NS   SUR     740 -180 00 Surinam
+Svalbard                                        SJ SV   SJM!    744 +060 00
+Svalbard and Jan Mayen                          SJ SV   SJM     744 +060 00
+Swaziland                                       SZ WZ   SWZ     748 +120 00
+Sweden                                          SE SW   SWE     752 +060 27 Sverige
+Switzerland                                     CH SZ   CHE     756 +060 27 Schweiz
+Syria                                           SY      SYR     760 +120 2A Suriyah
+Syrian Arab Republic                            SY      SYR!    760 +120 2A
+Taiwan                                          TW      TWN     158 +480 00 Chung-hua Min-kuo
+Tajikistan                                      TJ TI   TJK     762 +300 00 Tojikiston
+Tanzania                                        TZ      TZA     834 +180 00
+Thailand                                        TH      THA     764 +420 00 Prathet Thai
+Togo                                            TG TO   TGO     768 +000 00
+Tokelau                                         TK TL   TKL     772 -660 00 Tokélaou
+Tonga                                           TO TN   TON     776 +780 2F
+Trinidad and Tobago                             TT TD   TTO     780 -240 00
+Tunisia                                         TN TS   TUN     788 +060 00 Tunis
+Turkey                                          TR TU   TUR     792 +120 27 Türkiye
+Turkmenistan                                    TM TX   TKM     795 +300 00 Türkmenistan
+Turks and Caicos Islands                        TC TK   TCA     796 -300 2D
+Tuvalu                                          TV      TUV     798 +720 00
+Uganda                                          UG      UGA     800 +180 00
+Ukraine                                         UA UP   UKR     804 +120 27 Ukraina;Ukrayina
+United Arab Emirates                            AE TC   ARE     784 +240 00 Al Imarat;Al-Imarat al-`Arabiyah al-Muttahidah
+United Kingdom                                  GB UK   GBR     826 +000 27
+United States                                   US      USA     840 **** **
+United States Minor Outlying Islands            UM      UMI     581 **** **
+Uruguay                                         UY      URY     858 -180 00
+Uzbekistan                                      UZ      UZB     860 +300 00 O'zbekiston;Ozbekistan
+Vanuatu                                         VU NH   VUT     548 +660 00
+Vatican City                                    VA VT   VAT     336 +060 27 Santa Sede;Holy See;Vatican;Vatican City State
+Venezuela                                       VE      VEN     862 -240 00
+Viet Nam                                        VN VM   VNM     704 +420 00
+Virgin Islands (British)                        VG VI   VGB     092 -240 00 British Virgin Islands
+Virgin Islands (U.S.)                           VI      VIR     850 -240 00 Virgin Islands of the United States;United States Virgin Islands
+Wallis and Futuna Islands                       WF      WLF     876 +720 00 Wallis et Futuna
+West Bank                                       WE      WE-         +120 2H
+Western Sahara                                  EH WI   ESH     732 +000 00 Sahara' al-Gharbiyah
+Yemen                                           YE YM   YEM     887 +180 00 Al Yaman
+Yugoslavia                                      YU      YUG     891 +060 27 Jugoslavija
+Zambia                                          ZM ZA   ZMB     894 +120 00
+Zimbabwe                                        ZW ZI   ZWE     716 +120 00
