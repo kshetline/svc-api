@@ -6,6 +6,18 @@ export function notFound(res: Response): void {
   res.end();
 }
 
+export function processMillis(): number {
+  return Number(process.hrtime.bigint()) / 1000000;
+}
+
+export function isNil(x: any): boolean {
+  return x === undefined || x === null;
+}
+
+export function propertyCount(x: any): number {
+  return (typeof x === 'object' ? Object.keys(x).length : 0);
+}
+
 export function notFoundForEverythingElse(router: Router) {
   router.get('*', (req: Request, res: Response) => notFound(res));
 }
@@ -45,6 +57,10 @@ export function toInt(value: any, defaultValue = 0): number {
   }
   else
     return defaultValue;
+}
+
+export function eqci (s1: string, s2: string): boolean {
+  return s1 === s2 || isNil(s1) && isNil(s2) || s1.localeCompare(s2, undefined, {usage: 'search', sensitivity: 'base'}) === 0;
 }
 
 const diacriticals = '\u00C0\u00C1\u00C2\u00C3\u00C4\u00C5\u00C7\u00C8\u00C9\u00CA\u00CB\u00CC' +

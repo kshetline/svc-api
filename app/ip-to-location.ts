@@ -2,7 +2,7 @@ import { Request, Response, Router } from 'express';
 import http from 'http';
 import querystring from 'querystring';
 import requestIp from 'request-ip';
-import { notFound, notFoundForEverythingElse } from './common';
+import { notFound, notFoundForEverythingElse, processMillis } from './common';
 
 export const router = Router();
 
@@ -15,7 +15,7 @@ router.get('/json/*', (req: Request, res: Response) => {
   const matches = /^\/json(\/(.*))?$/.exec(url);
 
   if (matches) {
-    const now = Date.now(); // Number(process.hrtime.bigint() / 1000000n);
+    const now = processMillis();
 
     if (times.length === MAX_PER_MINUTE && times[0] > now - 60000) {
       if (params.callback) {

@@ -5,18 +5,114 @@ import { makePlainASCII_UC } from './common';
 
 const finished = promisify(stream.finished);
 
+export const longStates: Record<string, string> = {};
+const stateAbbreviations: Record<string, string> = {};
 const altFormToStd: Record<string, string> = {};
-const code3ToName: Record<string, string> = {};
+export const code3ToName: Record<string, string> = {};
 const nameToCode3: Record<string, string> = {};
 const code2ToCode3: Record<string, string> = {};
-const code3ToCode2: Record<string, string> = {};
-const new3ToOld2: Record<string, string> = {};
+export const code3ToCode2: Record<string, string> = {};
+export const new3ToOld2: Record<string, string> = {};
 
-(async () => {
+const usCounties = new Set<string>();
+const celestialNames = new Set<string>();
+
+const states = [
+  'Alabama', 'AL',
+  'Alaska', 'AK',
+  'American Samoa', 'AS',
+  'Arizona', 'AZ',
+  'Arkansas', 'AR',
+  'California', 'CA',
+  'Colorado', 'CO',
+  'Connecticut', 'CT',
+  'Delaware', 'DE',
+  'District of Columbia', 'DC',
+  'Federated States of Micronesia', 'FM',
+  'Florida', 'FL',
+  'Georgia', 'GA',
+  'Guam', 'GU',
+  'Hawaii', 'HI',
+  'Idaho', 'ID',
+  'Illinois', 'IL',
+  'Indiana', 'IN',
+  'Iowa', 'IA',
+  'Kansas', 'KS',
+  'Kentucky', 'KY',
+  'Louisiana', 'LA',
+  'Maine', 'ME',
+  'Marshall Islands', 'MH',
+  'Maryland', 'MD',
+  'Massachusetts', 'MA',
+  'Michigan', 'MI',
+  'Minnesota', 'MN',
+  'Mississippi', 'MS',
+  'Missouri', 'MO',
+  'Montana', 'MT',
+  'Nebraska', 'NE',
+  'Nevada', 'NV',
+  'New Hampshire', 'NH',
+  'New Jersey', 'NJ',
+  'New Mexico', 'NM',
+  'New York', 'NY',
+  'North Carolina', 'NC',
+  'North Dakota', 'ND',
+  'Northern Mariana Islands', 'MP',
+  'Ohio', 'OH',
+  'Oklahoma', 'OK',
+  'Oregon', 'OR',
+  'Palau', 'PW',
+  'Pennsylvania', 'PA',
+  'Puerto Rico', 'PR',
+  'Rhode Island', 'RI',
+  'South Carolina', 'SC',
+  'South Dakota', 'SD',
+  'Tennessee', 'TN',
+  'Texas', 'TX',
+  'Trust Territory of the Pacific Islands', '*TTPI',
+  'Utah', 'UT',
+  'Vermont', 'VT',
+  'Virgin Islands', 'VI',
+  'Virginia', 'VA',
+  'Washington', 'WA',
+  'West Virginia', 'WV',
+  'Wisconsin', 'WI',
+  'Wyoming', 'WY',
+
+  'Alberta', 'AB',
+  'British Columbia', 'BC',
+  'Manitoba', 'MB',
+  'New Brunswick', 'NB',
+  'Newfoundland', 'NF',
+  'Newfoundland and Labrador', 'NF',
+  'Northwest Territories', 'NT',
+  'Nova Scotia', 'NS',
+  'Nunavut', 'NU',
+  'Territory of Nunavut', 'NU',
+  'Ontario', 'ON',
+  'Prince Edward Island', 'PE',
+  'Prince Edward Isle', 'PE',
+  'Quebec', 'QC',
+  'Saskatchewan', 'SK',
+  'Yukon Territory', 'YT',
+  'Yukon', 'YT'
+];
+
+// const usStates = 'AL AK AS AZ AR CA CO CT DE DC FM FL GA GU HI ID IL IN IA KS KY LA ME MH MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND MP OH OK OR PW PA PR RI SC SD TN TX UT VT VI VA WA WV WI WY';
+export const usTerritories = 'AS  FM  GU   MH  MP PW   VI';
+// const usTerritoryCountryCodes = 'ASM FSM GUM MHL MNP PLW VIR';
+
+for (let i = 0; i < states.length; i += 2) {
+  longStates[states[i + 1]] = states[i];
+  stateAbbreviations[states[i]] = states[i + 1];
+  stateAbbreviations[states[i].toUpperCase()] = states[i + 1];
+}
+
+export async function initGazetteer() {
   try {
-    const path = 'app/data/country_codes.txt';
-    const length = statSync(path).size;
-    const input = createReadStream('app/data/country_codes.txt', {encoding: 'utf8', highWaterMark: length});
+    let path = 'app/data/country_codes.txt';
+    let length = statSync(path).size;
+    let input = createReadStream(path, {encoding: 'utf8', highWaterMark: length});
 
     input.on('error', err => console.log('gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
     input.on('data', (data: Buffer) => {
@@ -57,15 +153,46 @@ const new3ToOld2: Record<string, string> = {};
     });
 
     await finished(input);
+    input.close();
+
+    path = 'app/data/us_counties.txt';
+    length = statSync(path).size;
+    input = createReadStream(path, {encoding: 'utf8', highWaterMark: length});
+
+    input.on('error', err => console.log('gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
+    input.on('data', (data: Buffer) => {
+      const lines = data.toString('utf8').split(/\r\n|\n|\r/);
+
+      lines.forEach(line => usCounties.add(line.trim()));
+      // Add this fake county to suppress errors when DC is reported at the county level of a place hierarchy.
+      usCounties.add('Washington, DC');
+    });
+
+    await finished(input);
+    input.close();
+
+    path = 'app/data/celestial.txt';
+    length = statSync(path).size;
+    input = createReadStream(path, {encoding: 'utf8', highWaterMark: length});
+
+    input.on('error', err => console.log('gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
+    input.on('data', (data: Buffer) => {
+      const lines = data.toString('utf8').split(/\r\n|\n|\r/);
+
+      lines.forEach(line => celestialNames.add(line.trim()));
+    });
+
+    await finished(input);
+    input.close();
   }
   catch (err) {
-    console.log('gazetteer init error: ' + err);
+    console.error('gazetteer init error: ' + err);
   }
-})();
+}
 
 const VARIANT_START = /^((CANON DE|CERRO|FORT|FT|ILE D|ILE DE|ILE DU|ILES|ILSA|LA|LAKE|LAS|LE|LOS|MOUNT|MT|POINT|PT|THE) )(.*)/;
 
-function simplify(s: string, asVariant = false): string {
+export function simplify(s: string, asVariant = false): string {
   if (!s)
     return s;
 

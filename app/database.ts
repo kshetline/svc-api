@@ -1,13 +1,11 @@
 import mysql, { FieldInfo, MysqlError, QueryOptions } from 'mysql';
 
 const thePool = mysql.createPool({
-  host: (process.env.DB_REMOTE ? 'skyviewcafe.com' : '127.0.0.1'), // + '?useUnicode=true&characterEncoding=UTF-8',
+  host: (process.env.DB_REMOTE ? 'skyviewcafe.com' : '127.0.0.1'),
   user: 'skyview',
   password: process.env.DB_PWD,
   database: 'skyviewcafe'
 });
-
-thePool.query('foo');
 
 thePool.getConnection((err, connection) => {
   if (err) {
