@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response, Router } from 'express';
+import { isNil } from 'lodash';
 
 export function notFound(res: Response): void {
   res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'});
@@ -8,10 +9,6 @@ export function notFound(res: Response): void {
 
 export function processMillis(): number {
   return Number(process.hrtime.bigint()) / 1000000;
-}
-
-export function isNil(x: any): boolean {
-  return x === undefined || x === null;
 }
 
 export function propertyCount(x: any): number {

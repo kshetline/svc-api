@@ -1,11 +1,12 @@
 import { Request, Response, Router } from 'express';
 import { https } from 'follow-redirects';
 
-import { asyncHandler, eqci, makePlainASCII_UC, notFoundForEverythingElse, processMillis, propertyCount, toInt } from './common';
-import { pool } from './database';
+import { asyncHandler, eqci, makePlainASCII_UC, notFoundForEverythingElse, processMillis, toInt } from './common';
+import { Connection, pool } from './database';
 import { code3ToCode2, code3ToName, initGazetteer, longStates, new3ToOld2, simplify } from './gazetteer';
 import { SearchResult } from './search-result';
 import { AtlasLocation } from './atlas-location';
+import { Hash } from './hash';
 
 export const router = Router();
 
@@ -22,15 +23,7 @@ interface ParsedSearchString {
   normalizedSearch: string;
 }
 
-export async function initAtlas() {
-  try {
-    await initTimezones();
-    await initFlagCodes();
-    await initGazetteer();
-  }
-  catch (err) {
-    console.error('atlas init error: ' + err);
-  }
+class LocationHash extends Hash<string, AtlasLocation> {
 }
 
 const zoneLookup: Record<string, string> = {};
@@ -45,6 +38,17 @@ const DEFAULT_MATCH_LIMIT = 75;
 const MAX_MATCH_LIMIT = 500;
 const MIN_EXTERNAL_SOURCE = 100;
 const ZIP_RANK = 9;
+
+export async function initAtlas() {
+  try {
+    await initTimezones();
+    await initFlagCodes();
+    await initGazetteer();
+  }
+  catch (err) {
+    console.error('atlas init error: ' + err);
+  }
+}
 
 async function initTimezones() {
   const results: any[] = await pool.queryResults('SELECT location, zones FROM zone_lookup WHERE 1');
@@ -92,13 +96,14 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const result = new SearchResult(q, parsed.normalizedSearch);
   let consultRemoteData = false;
   let dbMatchedOnlyBySound = false;
-  let dbMatches: Record<string, AtlasLocation>;
+  let dbMatches = new LocationHash();
 
-  await hasSearchBeenDoneRecently(parsed.normalizedSearch, extend);
   for (let attempt = 0; attempt < 2 - 1; ++attempt) {
+    const connection = await pool.getConnection();
+
     if (remoteMode === 'only' ||
         (remoteMode !== 'skip' && (remoteMode === 'forced' ||
-        !(await hasSearchBeenDoneRecently(parsed.normalizedSearch, extend)))))
+        !(await hasSearchBeenDoneRecently(connection, parsed.normalizedSearch, extend)))))
     {
       consultRemoteData = true;
     }
@@ -110,19 +115,21 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     // }
 
     if (remoteMode === 'only')
-      dbMatches = {};
+      dbMatches.clear();
     else {
-      dbMatches = await doDataBaseSearch(parsed, extend, limit + 1);
-      console.log(dbMatches);
+      dbMatches = await doDataBaseSearch(connection, parsed, extend, limit + 1);
+      dbMatches.values.forEach(location => console.log(JSON.stringify(location)));
       dbMatchedOnlyBySound = true;
 
-      Object.values(dbMatches).every(location => {
+      dbMatches.values.every(location => {
         if (!location.matchedBySound)
           dbMatchedOnlyBySound = false;
 
         return !dbMatchedOnlyBySound;
       });
     }
+
+    connection.release();
   }
 
   console.log(consultRemoteData);
@@ -244,7 +251,7 @@ function getFlagCode(country: string, state: string): string {
   return code;
 }
 
-function makeLocationKey(city: string, state: string, country: string, otherLocations: Record<string, AtlasLocation>): string {
+function makeLocationKey(city: string, state: string, country: string, otherLocations: LocationHash): string {
   let baseKey: string;
   let key: string;
   let index = 1;
@@ -258,7 +265,7 @@ function makeLocationKey(city: string, state: string, country: string, otherLoca
 
   baseKey = key;
 
-  while (otherLocations[key]) {
+  while (otherLocations.contains(key)) {
     ++index;
     key = baseKey + '(' + index + ')';
   }
@@ -266,18 +273,18 @@ function makeLocationKey(city: string, state: string, country: string, otherLoca
   return key;
 }
 
-async function hasSearchBeenDoneRecently(searchStr: string, extended: boolean): Promise<boolean> {
-  return await logSearchResults(searchStr, extended, NO_RESULTS_YET, false);
+async function hasSearchBeenDoneRecently(connection: Connection, searchStr: string, extended: boolean): Promise<boolean> {
+  return await logSearchResults(connection, searchStr, extended, NO_RESULTS_YET, false);
 }
 
-async function logSearchResults(searchStr: string, extended: boolean, matchCount: number, dbUpdate: boolean): Promise<boolean> {
+async function logSearchResults(connection: Connection, searchStr: string, extended: boolean, matchCount: number, dbUpdate: boolean): Promise<boolean> {
   let dbHits = 0;
   let ageMonths = -1;
   let found = false;
   let wasExtended = false;
   let matches = 0;
 
-  const results = await pool.queryResults('SELECT extended, hits, matches, TIMESTAMPDIFF(MONTH, time_stamp, NOW()) as months FROM atlas_searches2 WHERE search_string = ?',
+  const results = await connection.queryResults('SELECT extended, hits, matches, TIMESTAMPDIFF(MONTH, time_stamp, NOW()) as months FROM atlas_searches2 WHERE search_string = ?',
     [searchStr]);
 
   if (results && results.length > 0) {
@@ -315,10 +322,10 @@ async function logSearchResults(searchStr: string, extended: boolean, matchCount
   return found;
 }
 
-async function doDataBaseSearch(parsed: ParsedSearchString, extendedSearch: boolean, maxMatches: number): Promise<Record<string, AtlasLocation>> {
+async function doDataBaseSearch(connection: Connection, parsed: ParsedSearchString, extendedSearch: boolean, maxMatches: number): Promise<LocationHash> {
   const simplifiedCity = simplify(parsed.targetCity);
   const examined = new Set<number>();
-  const matches: Record<string, AtlasLocation> = {};
+  const matches = new LocationHash();
 
   for (let pass = 0; pass < 2; ++pass) {
     const condition = (pass === 0 ? ' AND rank > 0' : '');
@@ -390,7 +397,7 @@ async function doDataBaseSearch(parsed: ParsedSearchString, extendedSearch: bool
       }
 
       console.log(query, values);
-      const results = await pool.queryResults(query, values);
+      const results = await connection.queryResults(query, values);
 
       (results ? results : []).every((result: any) => {
         const itemNo = result.item_no;
@@ -460,13 +467,13 @@ async function doDataBaseSearch(parsed: ParsedSearchString, extendedSearch: bool
           location.matchedBySound = true;
 
         key = makeLocationKey(city, state, country, matches);
-        matches[key] = location;
+        matches.put(key, location);
 
-        return (propertyCount(matches) <= maxMatches * 4);
+        return (matches.length <= maxMatches * 4);
       });
 
       // Skip SOUNDS_LIKE search step on first pass, or if better matches have already been found. Only one step needed for postal codes.
-      if (((pass === 0 || propertyCount(matches) > 0) && matchType >= MatchType.STARTS_WITH) || parsed.doZip)
+      if (((pass === 0 || matches.length > 0) && matchType >= MatchType.STARTS_WITH) || parsed.doZip)
         break;
     }
 

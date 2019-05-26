@@ -68,7 +68,7 @@ export class AtlasLocation {
     return zone.dstOffset;
   }
 
-  getDisplayName(): string {
+  get displayName(): string {
     let city = this.city;
     let county = this.county;
     let cityQualifier = '';
@@ -139,6 +139,8 @@ export class AtlasLocation {
     return city + cityQualifier + (displayState ? ', ' + displayState : '') + stateQualifier;
   }
 
+  set displayName(s: string) { /* Allow but ignore so this can be set via JSON without causing an error. */ }
+
   isCloseMatch(other: AtlasLocation): boolean {
     return eqci(this.city, other.city) &&
            eqci(this.variant, other.variant) &&
@@ -151,5 +153,19 @@ export class AtlasLocation {
            this.zone === other.zone &&
            this.zip === other.zip &&
            this.placeType === other.placeType;
+  }
+
+  toString(): string {
+    return `${this.displayName}: ${this.latitude}, ${this.longitude}; ${this.zip}; ${this.zone}; ${this.placeType}; ${this.source}; ${this.rank}`;
+  }
+
+  toJSON(): any {
+    const copy: any = {};
+
+    Object.assign(copy, this);
+    copy.displayName = this.displayName;
+    delete copy.geonameID;
+
+    return copy;
   }
 }
