@@ -56,6 +56,29 @@ export function toInt(value: any, defaultValue = 0): number {
     return defaultValue;
 }
 
+export function toNumber(value: any, defaultValue = 0): number {
+  if (typeof value === 'number')
+    return value;
+  else if (typeof value === 'string') {
+    const result = parseFloat(value);
+
+    if (isNaN(result) || !isFinite(result))
+      return defaultValue;
+    else
+      return result;
+  }
+  else if (typeof value === 'bigint') {
+    const result = Number(value);
+
+    if (isNaN(result) || !isFinite(result))
+      return defaultValue;
+    else
+      return result;
+  }
+  else
+    return defaultValue;
+}
+
 export function eqci (s1: string, s2: string): boolean {
   return s1 === s2 || isNil(s1) && isNil(s2) || s1.localeCompare(s2, undefined, {usage: 'search', sensitivity: 'base'}) === 0;
 }

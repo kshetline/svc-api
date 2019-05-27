@@ -3,7 +3,15 @@ import { https } from 'follow-redirects';
 import http from 'http';
 import { Html5Entities } from 'html-entities';
 
-import { asyncHandler, eqci, makePlainASCII_UC, notFoundForEverythingElse, processMillis, toInt } from './common';
+import {
+  asyncHandler,
+  eqci,
+  makePlainASCII_UC,
+  notFoundForEverythingElse,
+  processMillis,
+  toInt,
+  toNumber
+} from './common';
 import { Connection, pool } from './database';
 import {
   altFormToStd,
@@ -77,7 +85,7 @@ interface ProcessedNames {
 
 const entities = new Html5Entities();
 
-const zoneLookup: Record<string, string> = {};
+const zoneLookup: Record<string, string[]> = {};
 
 const US_ZIP_PATTERN = /(\d{5})(-\d{4,6})?/;
 const OTHER_POSTAL_CODE_PATTERN = /[0-9A-Z]{2,8}((-|\s+)[0-9A-Z]{2,6})?/i;
@@ -87,10 +95,19 @@ const NO_RESULTS_YET = -1;
 const MAX_MONTHS_BEFORE_REDOING_EXTENDED_SEARCH = 12;
 const DEFAULT_MATCH_LIMIT = 75;
 const MAX_MATCH_LIMIT = 500;
-const MIN_EXTERNAL_SOURCE = 100;
-const SOURCE_GEONAMES_POSTAL_UPDATE = 101;
+
+const MIN_EXTERNAL_SOURCE            = 100;
+const SOURCE_GEONAMES_POSTAL_UPDATE  = 101;
 const SOURCE_GEONAMES_GENERAL_UPDATE = 103;
+const SOURCE_GETTY_UPDATE            = 104;
+
 const ZIP_RANK = 9;
+
+const MAX_TIME_GETTY                 = 110; // seconds
+const PREFERRED_RETRIEVAL_TIME_GETTY =  40; // seconds
+const MAX_TIME_GEONAMES              =  20; // seconds
+
+const FAKE_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:66.0) Gecko/20100101 Firefox/66.0';
 
 export async function initAtlas() {
   try {
@@ -154,6 +171,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
   const result = new SearchResult(q, parsed.normalizedSearch);
   let consultRemoteData = false;
+  const remoteSearchResults = {} as RemoteSearchResults;
   let dbMatchedOnlyBySound = false;
   let dbMatches = new LocationHash();
 
@@ -191,13 +209,28 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     connection.release();
 
     if (consultRemoteData) {
-      const foo: RemoteSearchResults = {} as RemoteSearchResults;
-      const remoteSearch = await geoNamesSearchAux(parsed.targetCity, parsed.targetState, parsed.doZip, null, false);
-      console.log(remoteSearch, foo);
+      try {
+        remoteSearchResults.geoNamesMetrics = {} as GeoNamesMetrics;
+        remoteSearchResults.geoNamesMatches = await geoNamesSearch(parsed.targetCity, parsed.targetState, parsed.doZip, remoteSearchResults.geoNamesMetrics, false);
+      }
+      catch (err) {
+        remoteSearchResults.geoNamesError = err;
+      }
+
+      if (!parsed.doZip) {
+        try {
+          remoteSearchResults.gettyMetrics = {} as GettyMetrics;
+          remoteSearchResults.gettyMatches = await gettySearch(parsed.targetCity, parsed.targetState, remoteSearchResults.gettyMetrics, false);
+        }
+        catch (err) {
+          remoteSearchResults.geoNamesError = err;
+        }
+      }
+
+      console.log(remoteSearchResults);
     }
   }
 
-  console.log(consultRemoteData);
   result.time = processMillis() - startTime;
   res.send(result);
 }));
@@ -408,8 +441,8 @@ function processPlaceNames(city: string, county: string, state: string, country:
 
   ({name: city, variant} = fixRearrangedName(city));
 
-//  if (/,/.test(city))
-//    logWarning(MessageFormat.format("City name \"{0}\" ({1}, {2}) contains a comma.", city, state, country), notrace);
+  if (/,/.test(city))
+    logWarning(`City name "${city}" (${state}, ${country}) contains a comma.`, notrace);
 
   let match: string[];
 
@@ -435,7 +468,7 @@ function processPlaceNames(city: string, county: string, state: string, country:
     longCountry = code3ToName[country];
   }
   else {
-    // logWarning(MessageFormat.format("Failed to recognize country \"{0}\" for city \"{1}, {2}\".", country, city, state), notrace);
+    logWarning(`Failed to recognize country "${country}" for city "${city}, ${state}".`, notrace);
     country = country.replace(/^(.{0,2}).*$/, '$1?');
   }
 
@@ -458,7 +491,7 @@ function processPlaceNames(city: string, county: string, state: string, country:
       if (abbrevState)
         state = abbrevState;
       else
-      {} // logWarning(MessageFormat.format("Failed to recognize state/province \"{0}\" in country {1}.", state, country), notrace);
+        logWarning(`Failed to recognize state/province "${state}" in country ${country}.`, notrace);
     }
 
     if (county && country === 'USA' && usTerritories.indexOf(state) < 0) {
@@ -486,7 +519,7 @@ function processPlaceNames(city: string, county: string, state: string, country:
             county = 'City of ' + county;
         }
         else
-        {} // logWarning(MessageFormat.format("Failed to recognize US county \"{0}\" for city \"{1}\".", county, city), notrace);
+          logWarning(`Failed to recognize US county "${county}" for city "${city}".`, notrace);
       }
     }
   }
@@ -518,6 +551,39 @@ function getFlagCode(country: string, state: string): string {
     code = undefined;
 
   return code;
+}
+
+function getTimeZone(location: AtlasLocation): string {
+  const county  = location.county;
+  const state   = location.state;
+  const country = location.country;
+  let key = simplify(country);
+  let zones = zoneLookup[key];
+  let zones2: string[];
+  let zone;
+
+  if ((!zones || zones.length > 1) && state) {
+    key += ':' + simplify(state);
+    zones2 = zoneLookup[key];
+    zones = (zones2 ? zones2 : zones);
+
+    if ((!zones || zones.length > 1) && county) {
+      key += ':' + simplify(county);
+      zones2 = zoneLookup[key];
+      zones = (zones2 ? zones2 : zones);
+    }
+  }
+
+  if (!zones || zones.length === 0)
+    zone = undefined;
+  else {
+    zone = zones[0];
+
+    if (zones.length > 1)
+      zone += '?';
+  }
+
+  return zone;
 }
 
 function makeLocationKey(city: string, state: string, country: string, otherLocations: LocationHash): string {
@@ -665,7 +731,6 @@ async function doDataBaseSearch(connection: Connection, parsed: ParsedSearchStri
         break;
       }
 
-      console.log(query, values);
       const results = await connection.queryResults(query, values);
 
       (results ? results : []).every((result: any) => {
@@ -753,6 +818,457 @@ async function doDataBaseSearch(connection: Connection, parsed: ParsedSearchStri
   return matches;
 }
 
+async function gettySearch(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationHash> {
+  return new Promise<LocationHash>((resolve, reject) => {
+    let done = false;
+
+    gettySearchAux(targetCity, targetState, metrics, notrace).then(results => {
+      if (!done) {
+        done = true;
+        resolve(results);
+      }
+    }).catch(err => {
+      if (!done) {
+        done = true;
+        reject(err);
+      }
+    });
+
+    setTimeout(() => {
+      if (!done) {
+        done = true;
+        reject('Getty search timed out');
+      }
+    }, MAX_TIME_GETTY * 1000);
+  });
+}
+
+async function gettySearchAux(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationHash> {
+  const startTime = processMillis();
+  const keyedPlaces = await gettyPreliminarySearch(targetCity, targetState, metrics, notrace);
+  const originalKeys = keyedPlaces.keys;
+  const itemCount = keyedPlaces.length;
+  const matches = new LocationHash();
+  const retrievalStartTime = processMillis();
+  let goodFormat: boolean;
+  let latitude = 0.0;
+  let location: AtlasLocation;
+  let longitude = 0.0;
+  let retrieved = 0;
+  let hasCoordinates = 0;
+  let match: string[];
+
+  for (let i = 0; i < originalKeys.length; ++i) {
+    let key = originalKeys[i];
+    const url = 'http://www.getty.edu/vow/TGNFullDisplay?find=&place=&nation=&english=Y&subjectid=' + key;
+    const options = {headers: {'User-Agent': FAKE_USER_AGENT, 'Referer': 'http://www.getty.edu/vow/TGNServlet'}};
+    const lines = await new Promise<string[]>((resolve, reject) => {
+      http.get(url, options, res => {
+        let html = '';
+
+        if (res.statusCode === 200) {
+          res.on('data', (data: Buffer) => {
+            html += data.toString('utf8');
+          });
+
+          res.on('end', () => {
+            resolve(html.split(/\r\n|\n|\r/));
+          });
+        }
+        else
+          reject('Getty secondary error: ' + res.statusCode);
+      }).on('error', err => reject(err));
+    });
+
+    let pending = false;
+    let gotLat = false;
+    let gotLong = false;
+
+    goodFormat = false;
+
+    lines.every(line => {
+      if ((match = /<B>ID: (\d+)<\/B>/.exec(line)) && key === match[1]) {
+        pending = true;
+        goodFormat = true;
+        ++retrieved;
+      }
+      else if (pending && (match = /Lat:\s*([-.0-9]+).*decimal degrees</.exec(line))) {
+        latitude = toNumber(match[1]);
+        gotLat = true;
+      }
+      else if (pending && (match = /Long:\s*([-.0-9]+).*decimal degrees</.exec(line))) {
+        longitude = toNumber(match[1]);
+        gotLong = true;
+      }
+
+      if (gotLat && gotLong) {
+        location = keyedPlaces.get(key);
+
+        location.latitude = latitude;
+        location.longitude = longitude;
+
+        key = makeLocationKey(location.city, location.state, location.country, matches);
+        matches.put(key, location);
+        ++hasCoordinates;
+
+        return false;
+      }
+
+      return true;
+    });
+
+    if (!goodFormat)
+      throw new Error('Failed to parse secondary Getty data.');
+
+    const totalTimeSoFar = processMillis() - retrievalStartTime;
+    const remainingTime = PREFERRED_RETRIEVAL_TIME_GETTY * 1000 - totalTimeSoFar;
+
+    // If this is taking too long, settle for what has already been retrieved and give up on the rest.
+    if (remainingTime <= 0)
+      break;
+  }
+
+  if (metrics) {
+    const missingCoordinates = retrieved - hasCoordinates;
+
+    metrics.matchedCount = itemCount - missingCoordinates;
+    metrics.retrievedCount = retrieved - missingCoordinates;
+    metrics.totalTime = processMillis() - startTime;
+    metrics.preliminaryTime = retrievalStartTime - startTime;
+    metrics.retrievalTime = metrics.totalTime - metrics.preliminaryTime;
+    metrics.complete = (metrics.matchedCount === metrics.retrievedCount);
+  }
+
+  return matches;
+}
+
+enum Stage { LOOKING_FOR_ID_CODE, LOOKING_FOR_PLACE_NAME, LOOKING_FOR_HIERARCHY, LOOKING_FOR_EXTRAS_OR_END, PLACE_HAS_BEEN_PARSED }
+
+async function gettyPreliminarySearch(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationHash> {
+  let keyedPlaces = new LocationHash();
+  const altKeyedPlaces = new LocationHash();
+  let matchCount = 0;
+  let nextItem = 1;
+  let page = 0;
+  let theresMore = false;
+  let goodFormat: boolean;
+
+  do {
+    ++page;
+    goodFormat = false;
+
+    let altNames: string;
+    let asAlternate: boolean;
+    let city: string;
+    let continent: string;
+    let country: string;
+    let county: string;
+    let hierarchy: string;
+    let key: string;
+    let longCountry: string;
+    let longState: string;
+    let isMatch: boolean;
+    let placeType: string;
+    let stage: Stage;
+    let state: string;
+    let url: string;
+    let variant: string;
+    let vernacular: string;
+    let searchStr = targetCity.toLowerCase().replace(' ', '-') + '*';
+    let match: string[];
+
+    searchStr = searchStr.replace(/^mt\b/, 'mount');
+
+    url  = 'http://www.getty.edu/'
+         + 'vow/TGNServlet'
+         + '?nation='
+         + '&english=Y'
+         + '&find=' + encodeURIComponent(searchStr).replace('*', '%2A')
+         + '&place=atoll%2C+cape%2C+city%2C+county%2C+dependent+state%2C+inhabited+place%2C+island%2C+mountain%2C+'
+         +  'nation%2C+neighborhood%2C+park%2C+peak%2C+province%2C+state%2C+suburb%2C+town%2C+township%2C+village';
+
+    if (page > 1)
+      url += '&prev_page=' + (page - 1);
+
+    url += '&page=' + page;
+
+    const options = {headers: {'User-Agent': FAKE_USER_AGENT, 'Referer': 'http://www.getty.edu/research/tools/vocabularies/tgn/index.html'}};
+    const lines = await new Promise<string[]>((resolve, reject) => {
+      http.get(url, options, res => {
+        let html = '';
+
+        if (res.statusCode === 200) {
+          res.on('data', (data: Buffer) => {
+            html += data.toString('utf8');
+          });
+
+          res.on('end', () => {
+            resolve(html.split(/\r\n|\n|\r/));
+          });
+        }
+        else
+          reject('Getty preliminary error: ' + res.statusCode);
+      }).on('error', err => reject(err));
+    });
+
+    for (let i = 0; i < lines.length; ++i) {
+      let line = lines[i];
+
+      if (matchCount === 0 && /Your search has produced (no|too many) results\./i.test(line)) {
+        goodFormat = true;
+
+        break;
+      }
+      else if (matchCount === 0 && /Your search has invalid syntax\./i.test(line)) {
+        goodFormat = true; // The Getty output format is good -- it's our input format that's bad.
+
+        if (metrics != null)
+          metrics.failedSyntax = searchStr;
+
+        break;
+      }
+      else if (matchCount === 0 && /Server Error/i.test(line)) {
+        throw new Error('Getty server error');
+      }
+      else if (/global_next.gif/i.test(line)) {
+        theresMore = true;
+      }
+      else if ((match = /<TD><SPAN class="page"><B>(\d+)\.&nbsp;&nbsp;<\/B><\/SPAN><\/TD>/.exec(line)) &&
+               toInt(match[1]) === nextItem) {
+        ++nextItem;
+
+        stage = Stage.LOOKING_FOR_ID_CODE;
+        city = undefined;
+        key = '0';
+        hierarchy = undefined;
+        altNames = '';
+        asAlternate = false;
+        vernacular = undefined;
+
+        while (++i < lines.length) {
+          line = lines[i].trim();
+
+          if (stage === Stage.LOOKING_FOR_ID_CODE && (match = /<INPUT type=checkbox value=(\d+) name=checked>/.exec(line))) {
+            key = match[1];
+            stage = Stage.LOOKING_FOR_PLACE_NAME;
+          }
+          else if (stage === Stage.LOOKING_FOR_PLACE_NAME && (match = /(.+)<b>(.+)<\/B><\/A> \.\.\.\.\.\.\.\.\.\. \((.+)\)/.exec(line))) {
+            city = match[2];
+            placeType = match[3];
+            stage = Stage.LOOKING_FOR_HIERARCHY;
+          }
+          else if (stage === Stage.LOOKING_FOR_HIERARCHY && (match = /<TD COLSPAN=2><SPAN CLASS=page>\((.+)\) \[\d+\]/.exec(line))) {
+            hierarchy = match[1];
+            // It sucks having commas as part of real data which is itself delimited by commas! (Foobar, Republic of).
+            hierarchy = hierarchy.replace(/(, )(.[^,]+?), ([^,]+? (ar-|da|de|du|d'|La|la|Le|le|Las|las|Les|les|Los|los|of|The|the|van))(,|$)/g, '$1$3 2$5');
+
+            if (/Indonesia/.test(hierarchy))
+              hierarchy = hierarchy.replace(/(, Daerah Tingkat I)|(, Pulau)/, '');
+
+            stage = Stage.LOOKING_FOR_EXTRAS_OR_END;
+          }
+          else if (stage === Stage.LOOKING_FOR_EXTRAS_OR_END) {
+            if (!vernacular && (match = /Vernacular: (.+?)(<|$)/.exec(line))) {
+              vernacular = match[1].trim();
+            }
+            else if ((match = /<B>(.+)<\/B><BR>/.exec(line))) {
+              if (altNames)
+                altNames += ';';
+
+              altNames += match[1];
+            }
+            else if ((match = /<TD><SPAN class="page"><B>(\d+)\.&nbsp;&nbsp;<\/B><\/SPAN><\/TD>/.exec(line)) &&
+                     toInt(match[1]) === nextItem) {
+              --i; // We'll want to parse this same line again as the first line of the next city.
+              stage = Stage.PLACE_HAS_BEEN_PARSED;
+              break;
+            }
+            else if (/<\/TABLE>/.test(line)) {
+              stage = Stage.PLACE_HAS_BEEN_PARSED;
+              break;
+            }
+          }
+        }
+
+        if (stage === Stage.PLACE_HAS_BEEN_PARSED) {
+          goodFormat = true;
+          isMatch = false;
+          continent = undefined;
+          state = undefined;
+          county = undefined;
+
+          if ((match = /(.+?), (.+?), (.+?), (.+?), (.+?)(,|$)/.exec(hierarchy))) {
+            continent = match[2];
+            country = match[3];
+            state = match[4];
+            county = match[5];
+          }
+          else if ((match = /(.+?), (.+?), (.+?), (.+?)(,|$)/.exec(hierarchy))) {
+            continent = match[2];
+            country = match[3];
+            state = match[4];
+          }
+          else if ((match = /(.+?), (.+?), (.+?)(,|$)/.exec(hierarchy))) {
+            continent = match[2];
+            country = match[3];
+          }
+          else if ((match = /(.+?), (.+?)(,|$)/.exec(hierarchy))) {
+            continent = match[2];
+
+            if (/Antarctica/i.test(hierarchy))
+              country = 'ATA';
+            else {
+              const possibleCountry = fixRearrangedName(city).name;
+
+              if (getCode3ForCountry(possibleCountry)) {
+                city = possibleCountry;
+                country = possibleCountry;
+              }
+              else
+                country = undefined;
+            }
+          }
+          else
+            country = city;
+
+          const names = processPlaceNames(city, county, state, country, continent, true, notrace);
+
+          if (!names)
+            continue;
+
+          city = names.city;
+          variant = names.variant;
+          county = names.county;
+          state = names.state;
+          longState = names.longState;
+          country = names.country;
+          longCountry = names.longCountry;
+
+          if (placeType === 'nation' || placeType === 'dependent state') {
+            city = longCountry;
+
+            if (closeMatchForCity(targetCity, country) || closeMatchForCity(targetCity, longCountry))
+              isMatch = true;
+          }
+          else if (placeType === 'state' || placeType === 'province') {
+            city = longState;
+
+            if (closeMatchForCity(targetCity, state) || closeMatchForCity(targetCity, longState))
+              isMatch = true;
+          }
+          else {
+            if (closeMatchForCity(targetCity, city) || closeMatchForCity(targetCity, variant))
+              isMatch = true;
+            else if (closeMatchForCity(targetCity, vernacular)) {
+              city = vernacular;
+              isMatch = true;
+            }
+            else if (altNames) {
+              altNames.split(';').every(altName => {
+                if (closeMatchForCity(targetCity, altName)) {
+                  city = altName;
+                  isMatch = true;
+                  asAlternate = true;
+
+                  return false;
+                }
+
+                return true;
+              });
+            }
+          }
+
+          if (isMatch && closeMatchForState(targetState, state, country)) {
+            if (placeType === 'cape')
+              placeType = 'T.CAPE';
+            else if (placeType === 'park')
+              placeType = 'L.PRK';
+            else if (placeType === 'peak')
+              placeType = 'T.PK';
+            else if (placeType === 'county')
+              placeType = 'A.ADM2';
+            else if (placeType === 'atoll' || placeType === 'island')
+              placeType = 'T.ISL';
+            else if (placeType === 'mountain')
+              placeType = 'T.MT';
+            else if (placeType === 'dependent state' || placeType === 'nation')
+              placeType = 'A.ADM0';
+            else if (placeType === 'province' || placeType === 'state')
+              placeType = 'A.ADM1';
+            else
+              placeType = 'P.PPL';
+
+           const location = new AtlasLocation();
+
+            location.city = city;
+            location.county = county;
+            location.state = state;
+            location.country = country;
+            location.longCountry = longCountry;
+            location.flagCode = getFlagCode(country, state);
+            location.placeType = placeType;
+            location.variant = variant;
+            location.source = SOURCE_GETTY_UPDATE;
+
+            if (!matchingLocationFound(keyedPlaces, location) &&
+                !matchingLocationFound(altKeyedPlaces, location))
+            {
+              ++matchCount;
+              location.zone = getTimeZone(location);
+
+              if (asAlternate) {
+                altKeyedPlaces.put(key, location);
+              }
+              else {
+                keyedPlaces.put(key, location);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Never read more than 6 pages, and don't keep going if at least
+    // 50 matches have been found. If the match rate is high in the first
+    // two of pages or more, don't go any further than that.
+
+  } while (theresMore && page < 6 && matchCount < 50 && !(page > 1 && matchCount >= page * 12));
+
+  if (matchCount === 0 && !goodFormat)
+    throw new Error('Failed to parse Getty data.');
+
+  if (keyedPlaces.length === 0)
+    keyedPlaces = altKeyedPlaces;
+  else if (keyedPlaces.length + altKeyedPlaces.length < 25)
+    altKeyedPlaces.forEach((value, key) => keyedPlaces.put(key, value));
+
+  return keyedPlaces;
+}
+
+async function geoNamesSearch(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationHash> {
+  return new Promise<LocationHash>((resolve, reject) => {
+    let done = false;
+
+    geoNamesSearchAux(targetCity, targetState, doZip, metrics, notrace).then(results => {
+      if (!done) {
+        done = true;
+        resolve(results);
+      }
+    }).catch(err => {
+      if (!done) {
+        done = true;
+        reject(err);
+      }
+    });
+
+    setTimeout(() => {
+      if (!done) {
+        done = true;
+        reject('GeoNames search timed out');
+      }
+    }, MAX_TIME_GEONAMES * 1000);
+  });
+}
 
 async function geoNamesSearchAux(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationHash> {
   const startTime = processMillis();
@@ -760,6 +1276,7 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
 
   targetCity = targetCity.replace(/^mt\b/i, 'mount');
   metrics = metrics ? metrics : {} as GeoNamesMetrics;
+  metrics.matchedCount = 0;
 
   let url = `http://api.geonames.org/${doZip ? 'postalCodeSearchJSON' : 'searchJSON'}?username=skyview&style=full`;
 
@@ -779,7 +1296,7 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
 
   // noinspection JSMismatchedCollectionQueryUpdate
   let geonames: any[];
-  const options = {headers: {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:66.0) Gecko/20100101 Firefox/66.0'}};
+  const options = {headers: {'User-Agent': FAKE_USER_AGENT}};
   const results = await new Promise<any>((resolve, reject) => {
     http.get(url, options, res => {
       let lines = '';
@@ -883,6 +1400,10 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
   metrics.retrievalTime = processMillis() - startTime;
 
   return keyedPlaces;
+}
+
+function logWarning(message: string, notrace = true): void {
+  console.warn(message, notrace);
 }
 
 notFoundForEverythingElse(router);
