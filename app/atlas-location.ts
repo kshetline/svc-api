@@ -1,7 +1,6 @@
 import { KsTimeZone } from 'ks-date-time-zone';
 import { eqci } from './common';
 
-
 function addParenthetical(s: string): string {
   return ` (${s})`;
 }

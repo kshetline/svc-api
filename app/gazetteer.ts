@@ -6,15 +6,15 @@ import { makePlainASCII_UC } from './common';
 const finished = promisify(stream.finished);
 
 export const longStates: Record<string, string> = {};
-const stateAbbreviations: Record<string, string> = {};
-const altFormToStd: Record<string, string> = {};
+export const stateAbbreviations: Record<string, string> = {};
+export const altFormToStd: Record<string, string> = {};
 export const code3ToName: Record<string, string> = {};
-const nameToCode3: Record<string, string> = {};
-const code2ToCode3: Record<string, string> = {};
+export const nameToCode3: Record<string, string> = {};
+export const code2ToCode3: Record<string, string> = {};
 export const code3ToCode2: Record<string, string> = {};
 export const new3ToOld2: Record<string, string> = {};
 
-const usCounties = new Set<string>();
+export const usCounties = new Set<string>();
 const celestialNames = new Set<string>();
 
 const states = [

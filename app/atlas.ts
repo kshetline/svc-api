@@ -1,9 +1,20 @@
 import { Request, Response, Router } from 'express';
 import { https } from 'follow-redirects';
+import http from 'http';
+import { Html5Entities } from 'html-entities';
 
 import { asyncHandler, eqci, makePlainASCII_UC, notFoundForEverythingElse, processMillis, toInt } from './common';
 import { Connection, pool } from './database';
-import { code3ToCode2, code3ToName, initGazetteer, longStates, new3ToOld2, simplify } from './gazetteer';
+import {
+  altFormToStd,
+  code2ToCode3,
+  code3ToCode2,
+  code3ToName,
+  initGazetteer,
+  longStates, nameToCode3,
+  new3ToOld2,
+  simplify, stateAbbreviations, usCounties, usTerritories
+} from './gazetteer';
 import { SearchResult } from './search-result';
 import { AtlasLocation } from './atlas-location';
 import { Hash } from './hash';
@@ -26,6 +37,46 @@ interface ParsedSearchString {
 class LocationHash extends Hash<string, AtlasLocation> {
 }
 
+interface GeoNamesMetrics {
+ retrievalTime: number;
+ rawCount: number;
+ matchedCount: number;
+}
+
+interface GettyMetrics {
+  totalTime: number;
+  preliminaryTime: number;
+  retrievalTime: number;
+  matchedCount: number;
+  retrievedCount: number;
+  complete: boolean;
+  failedSyntax: string;
+}
+
+interface RemoteSearchResults {
+  geoNamesMatches: LocationHash;
+  geoNamesMetrics: GeoNamesMetrics;
+  geoNamesError: any;
+  gettyMatches: LocationHash;
+  gettyMetrics: GettyMetrics;
+  gettyError: any;
+  noErrors: boolean;
+  matches: number;
+}
+
+interface ProcessedNames {
+  city: string;
+  variant: string;
+  county: string;
+  state: string;
+  longState: string;
+  country: string;
+  longCountry: string;
+  continent: string;
+}
+
+const entities = new Html5Entities();
+
 const zoneLookup: Record<string, string> = {};
 
 const US_ZIP_PATTERN = /(\d{5})(-\d{4,6})?/;
@@ -37,6 +88,8 @@ const MAX_MONTHS_BEFORE_REDOING_EXTENDED_SEARCH = 12;
 const DEFAULT_MATCH_LIMIT = 75;
 const MAX_MATCH_LIMIT = 500;
 const MIN_EXTERNAL_SOURCE = 100;
+const SOURCE_GEONAMES_POSTAL_UPDATE = 101;
+const SOURCE_GEONAMES_GENERAL_UPDATE = 103;
 const ZIP_RANK = 9;
 
 export async function initAtlas() {
@@ -63,9 +116,15 @@ const flagCodes = new Set<string>();
 async function initFlagCodes() {
   return new Promise<any>((resolve, reject) => {
     https.get('https://skyviewcafe.com/assets/resources/flags/', res => {
+      let allData = '';
+
       if (res.statusCode === 200) {
         res.on('data', (data: Buffer) => {
-          const lines = data.toString('utf8').split(/\r\n|\n|\r/);
+          allData += data.toString('utf8');
+        });
+
+        res.on('end', () => {
+          const lines = allData.split(/\r\n|\n|\r/);
 
           lines.forEach(line => {
             const match = />(\w+)\.png</.exec(line);
@@ -130,6 +189,12 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     }
 
     connection.release();
+
+    if (consultRemoteData) {
+      const foo: RemoteSearchResults = {} as RemoteSearchResults;
+      const remoteSearch = await geoNamesSearchAux(parsed.targetCity, parsed.targetState, parsed.doZip, null, false);
+      console.log(remoteSearch, foo);
+    }
   }
 
   console.log(consultRemoteData);
@@ -194,7 +259,18 @@ function startsWithICND(testee: string, test: string): boolean { // Ignore Case 
   return testee.startsWith(test);
 }
 
-function isCloseMatchForState(target: string, state: string, country: string): boolean {
+
+function closeMatchForCity(target: string, candidate: string): boolean {
+  if (!target || !candidate)
+    return false;
+
+  target    = simplify(target);
+  candidate = simplify(candidate);
+
+  return candidate.startsWith(target);
+}
+
+function closeMatchForState(target: string, state: string, country: string): boolean {
   if (!target)
     return true;
 
@@ -223,6 +299,199 @@ function countyStateCleanUp(s: string): string {
   s = s.replace(CLEANUP3, '').trim();
 
   return s;
+}
+
+function isRecognizedUSCounty(county: string, state: string): boolean {
+  return usCounties.has(county + ', ' + state);
+}
+
+function standardizeShortCountyName(county: string): string {
+  if (!county)
+    return county;
+
+  county = county.trim();
+  county = county.replace(/ \(.*\)/g, '');
+  county = county.replace(/\s+/g, '');
+  county = county.replace(/\s*?-\s*?\b/g, '-');
+  county = county.replace(/ (Borough|Census Area|County|Division|Municipality|Parish)/ig, '');
+  county = county.replace(/Aleutian Islands/i, 'Aleutians West');
+  county = county.replace(/Coös/i, 'Coos');
+  county = county.replace(/De Kalb/i, 'DeKalb');
+  county = county.replace(/De Soto/i, 'DeSoto');
+  county = county.replace(/De Witt/i, 'DeWitt');
+  county = county.replace(/Du Page/i, 'DuPage');
+  county = county.replace(/^La(Crosse|Moure|Paz|Plate|Porte|Salle)/i, 'La $1');
+  county = county.replace(/Skagway-Yakutat-Angoon/i, 'Skagway-Hoonah-Angoon');
+  county = county.replace(/Grays Harbor/i, "Gray's Harbor");
+  county = county.replace(/OBrien/i, "O'Brien");
+  county = county.replace(/Prince Georges/i, "Prince George's");
+  county = county.replace(/Queen Annes"/, "Queen Anne's");
+  county = county.replace(/Scotts Bluff/i, "Scott's Bluff");
+  county = county.replace(/^(St. |St )/i, 'Saint ');
+  county = county.replace(/Saint Johns/i, "Saint John's");
+  county = county.replace(/Saint Marys/i, "Saint Mary's");
+
+  const match = /^Mc([a-z])(.*)/.exec(county);
+
+  if (match)
+    county = 'Mc' + match[1].toUpperCase() + match[2];
+
+  return county;
+}
+
+
+function matchingLocationFound(matches: LocationHash, location: AtlasLocation): boolean {
+  return matches.values.findIndex(location2 =>
+    location2.city === location.city &&
+    location2.county === location.county &&
+    location2.state === location.state &&
+    location2.country === location.country) >= 0;
+}
+
+function fixRearrangedName(name: string): {name: string, variant: string} {
+  let variant: string;
+  let match: string[];
+
+  if ((match = /(.+), (\w)(.*')/.exec(name))) {
+    variant = match[1];
+    name = match[2].toUpperCase() + match[3] + variant;
+  }
+  else if ((match = /(.+), (\w)(.*)/.exec(name))) {
+    variant = match[1];
+    name = match[2].toUpperCase() + match[3] + ' ' + variant;
+  }
+
+  return {name, variant};
+}
+
+function getCode3ForCountry(country: string): string {
+  country = simplify(country).substr(0, 20);
+
+  return nameToCode3[country];
+}
+
+const APARTMENTS_ETC = new RegExp('\\b((mobile|trailer|vehicle)\\s+(acre|city|community|corral|court|estate|garden|grove|harbor|haven|' +
+                                  'home|inn|lodge|lot|manor|park|plaza|ranch|resort|terrace|town|villa|village)s?)|' +
+                                  '((apartment|condominium|\\(subdivision\\))s?)\\b', 'i');
+const IGNORED_PLACES = new RegExp('bloomingtonmn|census designated place|colonia \\(|colonia number|condominium|circonscription electorale d|' +
+                                  'election precinct|\\(historical\\)|mobilehome|subdivision|unorganized territory|\\{|\\}', 'i');
+
+function processPlaceNames(city: string, county: string, state: string, country: string, continent: string,
+                           decodeHTML = false, notrace = true): ProcessedNames {
+  let abbrevState: string;
+  let code3: string;
+  let longState: string;
+  let longCountry: string;
+  let altForm: string;
+  let origCounty: string;
+  let variant: string;
+
+  if (decodeHTML) {
+    city      = entities.decode(city);
+    county    = entities.decode(county);
+    state     = entities.decode(state);
+    country   = entities.decode(country);
+    continent = entities.decode(continent);
+  }
+
+  if (/\b\d+[a-z]/i.test(city))
+    return null;
+
+  if (APARTMENTS_ETC.test(city))
+    return null;
+
+  if (IGNORED_PLACES.test(city))
+    return null;
+
+  if (/\bParis \d\d\b/i.test(city))
+    return null;
+
+  ({name: city, variant} = fixRearrangedName(city));
+
+//  if (/,/.test(city))
+//    logWarning(MessageFormat.format("City name \"{0}\" ({1}, {2}) contains a comma.", city, state, country), notrace);
+
+  let match: string[];
+
+  if (!variant && (match = /^(lake|mount|(?:mt\.?)|the|la|las|el|le|los)\b(.+)/i.exec(city)))
+    variant = match[2].trim();
+
+  altForm = altFormToStd[simplify(country)];
+
+  if (altForm)
+    country = altForm;
+
+  state  = countyStateCleanUp(state);
+  county = countyStateCleanUp(county);
+
+  longState   = state;
+  longCountry = country;
+  code3       = getCode3ForCountry(country);
+
+  if (code3) {
+    country = code3;
+  }
+  else if (code3ToName[country]) {
+    longCountry = code3ToName[country];
+  }
+  else {
+    // logWarning(MessageFormat.format("Failed to recognize country \"{0}\" for city \"{1}, {2}\".", country, city, state), notrace);
+    country = country.replace(/^(.{0,2}).*$/, '$1?');
+  }
+
+  if (state.toLowerCase().endsWith(' state')) {
+    state = state.substr(0, state.length - 6);
+  }
+
+  if (country === 'USA' || country === 'CAN') {
+    if (state && longStates[state])
+      longState = longStates[state];
+    else if (state) {
+      abbrevState = stateAbbreviations[makePlainASCII_UC(state)];
+
+      if (abbrevState) {
+        abbrevState = state;
+        abbrevState = abbrevState.replace(/ (state|province)$/i, '');
+        abbrevState = stateAbbreviations[makePlainASCII_UC(abbrevState)];
+      }
+
+      if (abbrevState)
+        state = abbrevState;
+      else
+      {} // logWarning(MessageFormat.format("Failed to recognize state/province \"{0}\" in country {1}.", state, country), notrace);
+    }
+
+    if (county && country === 'USA' && usTerritories.indexOf(state) < 0) {
+      origCounty = county;
+      county = standardizeShortCountyName(county);
+
+      if (!isRecognizedUSCounty(county, state)) {
+        county = origCounty;
+
+        if (county === 'District of Columbia')
+          county = 'Washington';
+
+        county = county.replace(/^City of /i, '');
+        county = county.replace(/\s(Indep. City|Independent City|Independent|City|Division|Municipality)$/i, '');
+
+        if (county !== origCounty) {
+          if (simplify(origCounty) === simplify(city) || simplify(county) === simplify(city)) {
+            // City is its own county in a sense -- and independent city. Blank out the redundancy.
+            county = undefined;
+          }
+          // Otherwise, this is probably a neighborhood in an independent city. We'll treat
+          // the independent city as a county, being that it's a higher administrative level,
+          // adding "City of" where appropriate.
+          else if (/city|division|municipality/i.test(city))
+            county = 'City of ' + county;
+        }
+        else
+        {} // logWarning(MessageFormat.format("Failed to recognize US county \"{0}\" for city \"{1}\".", county, city), notrace);
+      }
+    }
+  }
+
+  return {city, variant, county, state, longState, country, longCountry, continent};
 }
 
 function getFlagCode(country: string, state: string): string {
@@ -425,7 +694,7 @@ async function doDataBaseSearch(connection: Connection, parsed: ParsedSearchStri
         if (source >= MIN_EXTERNAL_SOURCE && !extendedSearch && pass === 0)
           return true;
 
-        if (!isCloseMatchForState(parsed.targetState, state, country))
+        if (!closeMatchForState(parsed.targetState, state, country))
           return true;
 
         if (altName)
@@ -482,6 +751,138 @@ async function doDataBaseSearch(connection: Connection, parsed: ParsedSearchStri
   }
 
   return matches;
+}
+
+
+async function geoNamesSearchAux(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationHash> {
+  const startTime = processMillis();
+  const keyedPlaces = new LocationHash();
+
+  targetCity = targetCity.replace(/^mt\b/i, 'mount');
+  metrics = metrics ? metrics : {} as GeoNamesMetrics;
+
+  let url = `http://api.geonames.org/${doZip ? 'postalCodeSearchJSON' : 'searchJSON'}?username=skyview&style=full`;
+
+  if (doZip)
+    url += '&postalcode=';
+  else {
+    url += '&isNameRequired=true'
+            // Remove &featureCode=PRK for now -- too many obscure matches.
+         + '&featureCode=LK&featureCode=MILB&featureCode=PPL&featureCode=PPLA&featureCode=PPLA2&featureCode=PPLA3'
+         + '&featureCode=PPLA4&featureCode=PPLC&featureCode=PPLF&featureCode=PPLG&featureCode=PPLL&featureCode=PPLQ&featureCode=PPLR'
+         + '&featureCode=PPLS&featureCode=PPLW&featureCode=PPLX&featureCode=ASTR&featureCode=ATHF&featureCode=CTRS&featureCode=OBS'
+         + '&featureCode=STNB&featureCode=ATOL&featureCode=CAPE&featureCode=ISL&featureCode=MT&featureCode=PK'
+         + '&q=';
+  }
+
+  url += encodeURIComponent(targetCity);
+
+  // noinspection JSMismatchedCollectionQueryUpdate
+  let geonames: any[];
+  const options = {headers: {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:66.0) Gecko/20100101 Firefox/66.0'}};
+  const results = await new Promise<any>((resolve, reject) => {
+    http.get(url, options, res => {
+      let lines = '';
+
+      if (res.statusCode === 200) {
+        res.on('data', (data: Buffer) => {
+          lines += data.toString('utf8');
+        });
+
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(lines));
+          }
+          catch (err) {
+            reject('GeoNames error: ' + err);
+          }
+        });
+      }
+      else
+        reject('GeoNames error: ' + res.statusCode);
+    }).on('error', err => reject(err));
+  });
+
+  if (results) {
+    if (!doZip && results.totalResultsCount > 0 && Array.isArray(results.geonames))
+      geonames = results.geonames;
+    else if (doZip && Array.isArray(results.postalCodes))
+      geonames = results.postalCodes;
+  }
+
+  if (geonames) {
+    geonames.every(geoname => {
+      const city: string = doZip ? geoname.placeName : geoname.name;
+      let county: string = geoname.adminName2;
+      let state: string;
+      let country: string = geoname.countryCode;
+      const continent: string = geoname.continentCode;
+      const placeType = (doZip ? 'P.PPL' : geoname.fcl + '.' + geoname.fcode);
+
+      if (continent === 'AN')
+        country = 'ATA';
+
+      if (country && code2ToCode3[country])
+        country = code2ToCode3[country];
+
+      if (country === 'USA') {
+        county = standardizeShortCountyName(county);
+        state = geoname.adminCode1;
+      }
+      else
+        state = geoname.adminName1;
+
+      const names = processPlaceNames(city, county, state, country, continent, false, notrace);
+
+      if (!names)
+        return true;
+
+      if ((doZip || closeMatchForCity(targetCity, names.city) || closeMatchForCity(targetCity, names.variant)) &&
+           closeMatchForState(targetState, state, country))
+      {
+        const location = new AtlasLocation();
+        const population = toInt(geoname.population);
+        let rank = 0;
+
+        if (placeType.startsWith('A.') || placeType.startsWith('P.')) {
+          ++rank;
+
+          if (placeType.endsWith('PPLC'))
+            ++rank;
+
+          if (population > 0)
+            rank += (population >= 1000000 ? 2 : 1);
+        }
+
+        location.city = names.city;
+        location.county = names.county;
+        location.state = names.state;
+        location.country = names.country;
+        location.longCountry = names.longCountry;
+        location.flagCode = getFlagCode(names.country, names.state);
+        location.rank = rank;
+        location.placeType = placeType;
+        location.latitude = geoname.lat;
+        location.longitude = geoname.lng;
+        location.zone = geoname.timezone && geoname.timezone.timeZoneId;
+        location.zip = (doZip ? geoname.postalcode : undefined);
+        location.variant = names.variant;
+        location.source = (doZip ? SOURCE_GEONAMES_POSTAL_UPDATE : SOURCE_GEONAMES_GENERAL_UPDATE);
+        location.geonameID = geoname.geonameId;
+
+        if (!matchingLocationFound(keyedPlaces, location)) {
+          keyedPlaces.put(makeLocationKey(location.city, location.state, location.country, keyedPlaces), location);
+          ++metrics.matchedCount;
+        }
+      }
+
+      return true;
+    });
+  }
+
+  metrics.retrievalTime = processMillis() - startTime;
+
+  return keyedPlaces;
 }
 
 notFoundForEverythingElse(router);
