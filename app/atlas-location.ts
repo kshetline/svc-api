@@ -15,7 +15,7 @@ function adjustUSCountyName(county: string, state: string): string {
     return county;
 
   if (state === 'AK') {
-    if (/Anchorage/i.test(county)) {
+    if (/Anchorage|Juneau/i.test(county)) {
       county += ' Division';
     }
     else if (CENSUS_AREAS.test(county))

@@ -10,7 +10,7 @@ import { altFormToStd, code2ToCode3, code3ToCode2, code3ToName, initGazetteer, l
 } from './gazetteer';
 import { SearchResult } from './search-result';
 import { AtlasLocation } from './atlas-location';
-import { Hash } from './hash';
+import { MapClass } from './map-class';
 
 export const router = Router();
 
@@ -27,8 +27,7 @@ interface ParsedSearchString {
   normalizedSearch: string;
 }
 
-class LocationHash extends Hash<string, AtlasLocation> {
-}
+class LocationMap extends MapClass<string, AtlasLocation> {}
 
 interface GeoNamesMetrics {
  retrievalTime: number;
@@ -47,10 +46,10 @@ interface GettyMetrics {
 }
 
 interface RemoteSearchResults {
-  geoNamesMatches: LocationHash;
+  geoNamesMatches: LocationMap;
   geoNamesMetrics: GeoNamesMetrics;
   geoNamesError: any;
-  gettyMatches: LocationHash;
+  gettyMatches: LocationMap;
   gettyMetrics: GettyMetrics;
   gettyError: any;
   noErrors: boolean;
@@ -145,7 +144,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   let consultRemoteData = false;
   let remoteSearchResults;
   let dbMatchedOnlyBySound = false;
-  let dbMatches = new LocationHash();
+  let dbMatches = new LocationMap();
 
   for (let attempt = 0; attempt < 2 - 1; ++attempt) {
     const connection = await pool.getConnection();
@@ -167,7 +166,6 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
       dbMatches.clear();
     else {
       dbMatches = await doDataBaseSearch(connection, parsed, extend, limit + 1);
-      dbMatches.values.forEach(location => console.log(JSON.stringify(location)));
       dbMatchedOnlyBySound = true;
 
       dbMatches.values.every(location => {
@@ -330,8 +328,7 @@ function standardizeShortCountyName(county: string): string {
   return county;
 }
 
-
-function matchingLocationFound(matches: LocationHash, location: AtlasLocation): boolean {
+function matchingLocationFound(matches: LocationMap, location: AtlasLocation): boolean {
   return matches.values.findIndex(location2 =>
     location2.city === location.city &&
     location2.county === location.county &&
@@ -544,7 +541,7 @@ function getTimeZone(location: AtlasLocation): string {
   return zone;
 }
 
-function makeLocationKey(city: string, state: string, country: string, otherLocations: LocationHash): string {
+function makeLocationKey(city: string, state: string, country: string, otherLocations: LocationMap): string {
   let baseKey: string;
   let key: string;
   let index = 1;
@@ -558,7 +555,7 @@ function makeLocationKey(city: string, state: string, country: string, otherLoca
 
   baseKey = key;
 
-  while (otherLocations.contains(key)) {
+  while (otherLocations.has(key)) {
     ++index;
     key = baseKey + '(' + index + ')';
   }
@@ -615,10 +612,10 @@ async function logSearchResults(connection: Connection, searchStr: string, exten
   return found;
 }
 
-async function doDataBaseSearch(connection: Connection, parsed: ParsedSearchString, extendedSearch: boolean, maxMatches: number): Promise<LocationHash> {
+async function doDataBaseSearch(connection: Connection, parsed: ParsedSearchString, extendedSearch: boolean, maxMatches: number): Promise<LocationMap> {
   const simplifiedCity = simplify(parsed.targetCity);
   const examined = new Set<number>();
-  const matches = new LocationHash();
+  const matches = new LocationMap();
 
   for (let pass = 0; pass < 2; ++pass) {
     const condition = (pass === 0 ? ' AND rank > 0' : '');
@@ -759,13 +756,13 @@ async function doDataBaseSearch(connection: Connection, parsed: ParsedSearchStri
           location.matchedBySound = true;
 
         key = makeLocationKey(city, state, country, matches);
-        matches.put(key, location);
+        matches.set(key, location);
 
-        return (matches.length <= maxMatches * 4);
+        return (matches.size <= maxMatches * 4);
       });
 
       // Skip SOUNDS_LIKE search step on first pass, or if better matches have already been found. Only one step needed for postal codes.
-      if (((pass === 0 || matches.length > 0) && matchType >= MatchType.STARTS_WITH) || parsed.doZip)
+      if (((pass === 0 || matches.size > 0) && matchType >= MatchType.STARTS_WITH) || parsed.doZip)
         break;
     }
 
@@ -782,7 +779,7 @@ async function remoteSourcesSearch(parsed: ParsedSearchString, extend: boolean, 
   results.geoNamesMetrics = {} as GeoNamesMetrics;
   results.gettyMetrics = {} as GettyMetrics;
 
-  const promises: Promise<LocationHash>[] = [];
+  const promises: Promise<LocationMap>[] = [];
 
   promises.push(geoNamesSearch(parsed.targetCity, parsed.targetState, parsed.doZip, results.geoNamesMetrics, notrace));
 
@@ -802,21 +799,21 @@ async function remoteSourcesSearch(parsed: ParsedSearchString, extend: boolean, 
     results.gettyMatches = locationsOrErrors[1];
 
   results.noErrors = !!(results.geoNamesMatches && results.gettyMatches);
-  results.matches = (results.geoNamesMatches ? results.geoNamesMatches.length : 0) + (results.gettyMatches ? results.gettyMatches.length : 0);
+  results.matches = (results.geoNamesMatches ? results.geoNamesMatches.size : 0) + (results.gettyMatches ? results.gettyMatches.size : 0);
 
   return results;
 }
 
-async function gettySearch(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationHash> {
+async function gettySearch(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationMap> {
   return timedPromise(gettySearchAux(targetCity, targetState, metrics, notrace), MAX_TIME_GETTY * 1000, 'Getty search timed out');
 }
 
-async function gettySearchAux(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationHash> {
+async function gettySearchAux(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationMap> {
   const startTime = processMillis();
   const keyedPlaces = await gettyPreliminarySearch(targetCity, targetState, metrics, notrace);
   const originalKeys = keyedPlaces.keys;
-  const itemCount = keyedPlaces.length;
-  const matches = new LocationHash();
+  const itemCount = keyedPlaces.size;
+  const matches = new LocationMap();
   const retrievalStartTime = processMillis();
   let goodFormat: boolean;
   let latitude = 0.0;
@@ -867,7 +864,7 @@ async function gettySearchAux(targetCity: string, targetState: string, metrics: 
         location.longitude = longitude;
 
         key = makeLocationKey(location.city, location.state, location.country, matches);
-        matches.put(key, location);
+        matches.set(key, location);
         ++hasCoordinates;
 
         return false;
@@ -903,9 +900,9 @@ async function gettySearchAux(targetCity: string, targetState: string, metrics: 
 
 enum Stage { LOOKING_FOR_ID_CODE, LOOKING_FOR_PLACE_NAME, LOOKING_FOR_HIERARCHY, LOOKING_FOR_EXTRAS_OR_END, PLACE_HAS_BEEN_PARSED }
 
-async function gettyPreliminarySearch(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationHash> {
-  let keyedPlaces = new LocationHash();
-  const altKeyedPlaces = new LocationHash();
+async function gettyPreliminarySearch(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationMap> {
+  let keyedPlaces = new LocationMap();
+  const altKeyedPlaces = new LocationMap();
   let matchCount = 0;
   let nextItem = 1;
   let page = 0;
@@ -1167,10 +1164,10 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
               location.zone = getTimeZone(location);
 
               if (asAlternate) {
-                altKeyedPlaces.put(key, location);
+                altKeyedPlaces.set(key, location);
               }
               else {
-                keyedPlaces.put(key, location);
+                keyedPlaces.set(key, location);
               }
             }
           }
@@ -1187,21 +1184,21 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
   if (matchCount === 0 && !goodFormat)
     throw new Error('Failed to parse Getty data.');
 
-  if (keyedPlaces.length === 0)
+  if (keyedPlaces.size === 0)
     keyedPlaces = altKeyedPlaces;
-  else if (keyedPlaces.length + altKeyedPlaces.length < 25)
-    altKeyedPlaces.forEach((value, key) => keyedPlaces.put(key, value));
+  else if (keyedPlaces.size + altKeyedPlaces.size < 25)
+    altKeyedPlaces.forEach((value, key) => keyedPlaces.set(key, value));
 
   return keyedPlaces;
 }
 
-async function geoNamesSearch(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationHash> {
+async function geoNamesSearch(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationMap> {
   return timedPromise(geoNamesSearchAux(targetCity, targetState, doZip, metrics, notrace), MAX_TIME_GEONAMES * 1000, 'GeoNames search timed out');
 }
 
-async function geoNamesSearchAux(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationHash> {
+async function geoNamesSearchAux(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationMap> {
   const startTime = processMillis();
-  const keyedPlaces = new LocationHash();
+  const keyedPlaces = new LocationMap();
 
   targetCity = targetCity.replace(/^mt\b/i, 'mount');
   metrics = metrics ? metrics : {} as GeoNamesMetrics;
@@ -1302,7 +1299,7 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
         location.geonameID = geoname.geonameId;
 
         if (!matchingLocationFound(keyedPlaces, location)) {
-          keyedPlaces.put(makeLocationKey(location.city, location.state, location.country, keyedPlaces), location);
+          keyedPlaces.set(makeLocationKey(location.city, location.state, location.country, keyedPlaces), location);
           ++metrics.matchedCount;
         }
       }
