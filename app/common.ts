@@ -2,6 +2,7 @@ import { NextFunction, Request, Response, Router } from 'express';
 import { isNil } from 'lodash';
 import http, { RequestOptions } from 'http';
 import { https } from 'follow-redirects';
+import { parse as parseUrl } from 'url';
 
 export function notFound(res: Response): void {
   res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'});
@@ -100,29 +101,30 @@ export function timedPromise<T>(promise: Promise<T>, maxTime: number, errorRespo
   return Promise.race([promise, timer]);
 }
 
-export async function getHttpContent(url: string, options: RequestOptions, encoding = 'utf8'): Promise<string> {
+export async function getWebPage(urlOrOptions: string | RequestOptions, encoding?: string): Promise<string>;
+export async function getWebPage(url: string, options: RequestOptions, encoding?: string): Promise<string>;
+export async function getWebPage(urlOrOptions: string | RequestOptions, optionsOrEncoding?: RequestOptions | string, encoding?: string): Promise<string> {
+  let options: RequestOptions;
+
+  if (typeof urlOrOptions === 'string')
+    options = parseUrl(urlOrOptions);
+
+  if (typeof optionsOrEncoding === 'string')
+    encoding = optionsOrEncoding;
+  else if (optionsOrEncoding) {
+    if (options)
+      Object.assign(options, optionsOrEncoding);
+    else
+      options = optionsOrEncoding;
+  }
+
+  if (!encoding)
+    encoding = 'utf8';
+
+  const protocol = (options.protocol === 'https:' ? https : http);
+
   return new Promise<string>((resolve, reject) => {
-    http.get(url, options, res => {
-      let content = '';
-
-      if (res.statusCode === 200) {
-        res.on('data', (data: Buffer) => {
-          content += data.toString(encoding);
-        });
-
-        res.on('end', () => {
-          resolve(content);
-        });
-      }
-      else
-        reject(res.statusCode);
-    }).on('error', err => reject(err));
-  });
-}
-
-export async function getHttpsContent(url: string, encoding = 'utf8'): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    https.get(url, res => {
+    protocol.get(options, res => {
       let content = '';
 
       if (res.statusCode === 200) {

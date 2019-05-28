@@ -2,7 +2,7 @@ import { Request, Response, Router } from 'express';
 import { Html5Entities } from 'html-entities';
 
 import {
-  asyncHandler, eqci, getHttpContent, getHttpsContent, makePlainASCII_UC, notFoundForEverythingElse, processMillis, timedPromise, toInt, toNumber
+  asyncHandler, eqci, getWebPage, makePlainASCII_UC, notFoundForEverythingElse, processMillis, timedPromise, toInt, toNumber
 } from './common';
 import { Connection, pool } from './database';
 import { altFormToStd, code2ToCode3, code3ToCode2, code3ToName, initGazetteer, longStates, nameToCode3, new3ToOld2,
@@ -117,7 +117,7 @@ const flagCodes = new Set<string>();
 
 async function initFlagCodes() {
   try {
-    const lines = (await getHttpsContent('https://skyviewcafe.com/assets/resources/flags/')).split(/\r\n|\n|\r/);
+    const lines = (await getWebPage('https://skyviewcafe.com/assets/resources/flags/')).split(/\r\n|\n|\r/);
 
     lines.forEach(line => {
       const match = />(\w+)\.png</.exec(line);
@@ -304,6 +304,7 @@ function standardizeShortCountyName(county: string): string {
   county = county.replace(/\s*?-\s*?\b/g, '-');
   county = county.replace(/ (Borough|Census Area|County|Division|Municipality|Parish)/ig, '');
   county = county.replace(/Aleutian Islands/i, 'Aleutians West');
+  county = county.replace(/Juneau City and/i, 'Juneau');
   county = county.replace(/Coös/i, 'Coos');
   county = county.replace(/De Kalb/i, 'DeKalb');
   county = county.replace(/De Soto/i, 'DeSoto');
@@ -832,7 +833,7 @@ async function gettySearchAux(targetCity: string, targetState: string, metrics: 
     let lines: string[];
 
     try {
-      lines = (await getHttpContent(url, options)).split(/\r\n|\n|\r/);
+      lines = (await getWebPage(url, options)).split(/\r\n|\n|\r/);
     }
     catch (err) {
       throw new Error('Getty secondary error: ' + err);
@@ -954,7 +955,7 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
     let lines: string[];
 
     try {
-      lines = (await getHttpContent(url, options)).split(/\r\n|\n|\r/);
+      lines = (await getWebPage(url, options)).split(/\r\n|\n|\r/);
     }
     catch (err) {
       throw new Error('Getty preliminary error: ' + err);
@@ -1227,7 +1228,7 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
   let results: any;
 
   try {
-    results = JSON.parse(await getHttpContent(url, options));
+    results = JSON.parse(await getWebPage(url, options));
   }
   catch (err) {
     throw new Error('GeoNames error: ' + err);
