@@ -119,10 +119,10 @@ async function initFlagCodes() {
     const lines = (await getWebPage('https://skyviewcafe.com/assets/resources/flags/')).split(/\r\n|\n|\r/);
 
     lines.forEach(line => {
-      const match = />(\w+)\.png</.exec(line);
+      const groups = />(\w+)\.png</.exec(line);
 
-      if (match)
-        flagCodes.add(match[1]);
+      if (groups)
+        flagCodes.add(groups[1]);
     });
   }
   catch (err) {
@@ -320,10 +320,10 @@ function standardizeShortCountyName(county: string): string {
   county = county.replace(/Saint Marys/i, "Saint Mary's");
   county = county.replace(/BronxCounty/i, 'Bronx');
 
-  const match = /^Mc([a-z])(.*)/.exec(county);
+  const $ = /^Mc([a-z])(.*)/.exec(county);
 
-  if (match)
-    county = 'Mc' + match[1].toUpperCase() + match[2];
+  if ($)
+    county = 'Mc' + $[1].toUpperCase() + $[2];
 
   return county;
 }
@@ -338,15 +338,15 @@ function matchingLocationFound(matches: LocationMap, location: AtlasLocation): b
 
 function fixRearrangedName(name: string): {name: string, variant: string} {
   let variant: string;
-  let match: string[];
+  let $: string[];
 
-  if ((match = /(.+), (\w)(.*')/.exec(name))) {
-    variant = match[1];
-    name = match[2].toUpperCase() + match[3] + variant;
+  if (($ = /(.+), (\w)(.*')/.exec(name))) {
+    variant = $[1];
+    name = $[2].toUpperCase() + $[3] + variant;
   }
-  else if ((match = /(.+), (\w)(.*)/.exec(name))) {
-    variant = match[1];
-    name = match[2].toUpperCase() + match[3] + ' ' + variant;
+  else if (($ = /(.+), (\w)(.*)/.exec(name))) {
+    variant = $[1];
+    name = $[2].toUpperCase() + $[3] + ' ' + variant;
   }
 
   return {name, variant};
@@ -399,10 +399,10 @@ function processPlaceNames(city: string, county: string, state: string, country:
   if (/,/.test(city))
     logWarning(`City name "${city}" (${state}, ${country}) contains a comma.`, notrace);
 
-  let match: string[];
+  let $: string[];
 
-  if (!variant && (match = /^(lake|mount|(?:mt\.?)|the|la|las|el|le|los)\b(.+)/i.exec(city)))
-    variant = match[2].trim();
+  if (!variant && ($ = /^(lake|mount|(?:mt\.?)|the|la|las|el|le|los)\b(.+)/i.exec(city)))
+    variant = $[2].trim();
 
   altForm = altFormToStd[simplify(country)];
 
@@ -821,7 +821,7 @@ async function gettySearchAux(targetCity: string, targetState: string, metrics: 
   let longitude = 0.0;
   let retrieved = 0;
   let hasCoordinates = 0;
-  let match: string[];
+  let $: string[];
 
   for (let i = 0; i < originalKeys.length; ++i) {
     let key = originalKeys[i];
@@ -843,17 +843,17 @@ async function gettySearchAux(targetCity: string, targetState: string, metrics: 
     goodFormat = false;
 
     lines.every(line => {
-      if ((match = /<B>ID: (\d+)<\/B>/.exec(line)) && key === match[1]) {
+      if (($ = /<B>ID: (\d+)<\/B>/.exec(line)) && key === $[1]) {
         pending = true;
         goodFormat = true;
         ++retrieved;
       }
-      else if (pending && (match = /Lat:\s*([-.0-9]+).*decimal degrees</.exec(line))) {
-        latitude = toNumber(match[1]);
+      else if (pending && ($ = /Lat:\s*([-.0-9]+).*decimal degrees</.exec(line))) {
+        latitude = toNumber($[1]);
         gotLat = true;
       }
-      else if (pending && (match = /Long:\s*([-.0-9]+).*decimal degrees</.exec(line))) {
-        longitude = toNumber(match[1]);
+      else if (pending && ($ = /Long:\s*([-.0-9]+).*decimal degrees</.exec(line))) {
+        longitude = toNumber($[1]);
         gotLong = true;
       }
 
@@ -931,7 +931,7 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
     let variant: string;
     let vernacular: string;
     let searchStr = targetCity.toLowerCase().replace(' ', '-') + '*';
-    let match: string[];
+    let $: string[];
 
     searchStr = searchStr.replace(/^mt\b/, 'mount');
 
@@ -980,8 +980,8 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
       else if (/global_next.gif/i.test(line)) {
         theresMore = true;
       }
-      else if ((match = /<TD><SPAN class="page"><B>(\d+)\.&nbsp;&nbsp;<\/B><\/SPAN><\/TD>/.exec(line)) &&
-               toInt(match[1]) === nextItem) {
+      else if (($ = /<TD><SPAN class="page"><B>(\d+)\.&nbsp;&nbsp;<\/B><\/SPAN><\/TD>/.exec(line)) &&
+               toInt($[1]) === nextItem) {
         ++nextItem;
 
         stage = Stage.LOOKING_FOR_ID_CODE;
@@ -995,17 +995,17 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
         while (++i < lines.length) {
           line = lines[i].trim();
 
-          if (stage === Stage.LOOKING_FOR_ID_CODE && (match = /<INPUT type=checkbox value=(\d+) name=checked>/.exec(line))) {
-            key = match[1];
+          if (stage === Stage.LOOKING_FOR_ID_CODE && ($ = /<INPUT type=checkbox value=(\d+) name=checked>/.exec(line))) {
+            key = $[1];
             stage = Stage.LOOKING_FOR_PLACE_NAME;
           }
-          else if (stage === Stage.LOOKING_FOR_PLACE_NAME && (match = /(.+)<b>(.+)<\/B><\/A> \.\.\.\.\.\.\.\.\.\. \((.+)\)/.exec(line))) {
-            city = match[2];
-            placeType = match[3];
+          else if (stage === Stage.LOOKING_FOR_PLACE_NAME && ($ = /(.+)<b>(.+)<\/B><\/A> \.\.\.\.\.\.\.\.\.\. \((.+)\)/.exec(line))) {
+            city = $[2];
+            placeType = $[3];
             stage = Stage.LOOKING_FOR_HIERARCHY;
           }
-          else if (stage === Stage.LOOKING_FOR_HIERARCHY && (match = /<TD COLSPAN=2><SPAN CLASS=page>\((.+)\) \[\d+\]/.exec(line))) {
-            hierarchy = match[1];
+          else if (stage === Stage.LOOKING_FOR_HIERARCHY && ($ = /<TD COLSPAN=2><SPAN CLASS=page>\((.+)\) \[\d+\]/.exec(line))) {
+            hierarchy = $[1];
             // It sucks having commas as part of real data which is itself delimited by commas! (Foobar, Republic of).
             hierarchy = hierarchy.replace(/(, )(.[^,]+?), ([^,]+? (ar-|da|de|du|d'|La|la|Le|le|Las|las|Les|les|Los|los|of|The|the|van))(,|$)/g, '$1$3 2$5');
 
@@ -1015,17 +1015,17 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
             stage = Stage.LOOKING_FOR_EXTRAS_OR_END;
           }
           else if (stage === Stage.LOOKING_FOR_EXTRAS_OR_END) {
-            if (!vernacular && (match = /Vernacular: (.+?)(<|$)/.exec(line))) {
-              vernacular = match[1].trim();
+            if (!vernacular && ($ = /Vernacular: (.+?)(<|$)/.exec(line))) {
+              vernacular = $[1].trim();
             }
-            else if ((match = /<B>(.+)<\/B><BR>/.exec(line))) {
+            else if (($ = /<B>(.+)<\/B><BR>/.exec(line))) {
               if (altNames)
                 altNames += ';';
 
-              altNames += match[1];
+              altNames += $[1];
             }
-            else if ((match = /<TD><SPAN class="page"><B>(\d+)\.&nbsp;&nbsp;<\/B><\/SPAN><\/TD>/.exec(line)) &&
-                     toInt(match[1]) === nextItem) {
+            else if (($ = /<TD><SPAN class="page"><B>(\d+)\.&nbsp;&nbsp;<\/B><\/SPAN><\/TD>/.exec(line)) &&
+                     toInt($[1]) === nextItem) {
               --i; // We'll want to parse this same line again as the first line of the next city.
               stage = Stage.PLACE_HAS_BEEN_PARSED;
               break;
@@ -1044,23 +1044,23 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
           state = undefined;
           county = undefined;
 
-          if ((match = /(.+?), (.+?), (.+?), (.+?), (.+?)(,|$)/.exec(hierarchy))) {
-            continent = match[2];
-            country = match[3];
-            state = match[4];
-            county = match[5];
+          if (($ = /(.+?), (.+?), (.+?), (.+?), (.+?)(,|$)/.exec(hierarchy))) {
+            continent = $[2];
+            country = $[3];
+            state = $[4];
+            county = $[5];
           }
-          else if ((match = /(.+?), (.+?), (.+?), (.+?)(,|$)/.exec(hierarchy))) {
-            continent = match[2];
-            country = match[3];
-            state = match[4];
+          else if (($ = /(.+?), (.+?), (.+?), (.+?)(,|$)/.exec(hierarchy))) {
+            continent = $[2];
+            country = $[3];
+            state = $[4];
           }
-          else if ((match = /(.+?), (.+?), (.+?)(,|$)/.exec(hierarchy))) {
-            continent = match[2];
-            country = match[3];
+          else if (($ = /(.+?), (.+?), (.+?)(,|$)/.exec(hierarchy))) {
+            continent = $[2];
+            country = $[3];
           }
-          else if ((match = /(.+?), (.+?)(,|$)/.exec(hierarchy))) {
-            continent = match[2];
+          else if (($ = /(.+?), (.+?)(,|$)/.exec(hierarchy))) {
+            continent = $[2];
 
             if (/Antarctica/i.test(hierarchy))
               country = 'ATA';
