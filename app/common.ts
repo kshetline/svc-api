@@ -1,5 +1,7 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import { isNil } from 'lodash';
+import http, { RequestOptions } from 'http';
+import { https } from 'follow-redirects';
 
 export function notFound(res: Response): void {
   res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'});
@@ -81,6 +83,61 @@ export function toNumber(value: any, defaultValue = 0): number {
 
 export function eqci (s1: string, s2: string): boolean {
   return s1 === s2 || isNil(s1) && isNil(s2) || s1.localeCompare(s2, undefined, {usage: 'search', sensitivity: 'base'}) === 0;
+}
+
+export class PromiseTimeoutError extends Error {
+  constructor(message?: string) {
+    super(message);
+  }
+}
+
+export function timedPromise<T>(promise: Promise<T>, maxTime: number, errorResponse?: any): Promise<T> {
+  if (typeof errorResponse === 'string')
+    errorResponse = new PromiseTimeoutError(errorResponse);
+
+  const timer = new Promise<T>((resolve, reject) => setTimeout(() => reject(errorResponse), maxTime));
+
+  return Promise.race([promise, timer]);
+}
+
+export async function getHttpContent(url: string, options: RequestOptions, encoding = 'utf8'): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    http.get(url, options, res => {
+      let content = '';
+
+      if (res.statusCode === 200) {
+        res.on('data', (data: Buffer) => {
+          content += data.toString(encoding);
+        });
+
+        res.on('end', () => {
+          resolve(content);
+        });
+      }
+      else
+        reject(res.statusCode);
+    }).on('error', err => reject(err));
+  });
+}
+
+export async function getHttpsContent(url: string, encoding = 'utf8'): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    https.get(url, res => {
+      let content = '';
+
+      if (res.statusCode === 200) {
+        res.on('data', (data: Buffer) => {
+          content += data.toString(encoding);
+        });
+
+        res.on('end', () => {
+          resolve(content);
+        });
+      }
+      else
+        reject(res.statusCode);
+    }).on('error', err => reject(err));
+  });
 }
 
 const diacriticals = '\u00C0\u00C1\u00C2\u00C3\u00C4\u00C5\u00C7\u00C8\u00C9\u00CA\u00CB\u00CC' +

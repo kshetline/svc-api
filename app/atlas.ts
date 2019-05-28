@@ -1,26 +1,11 @@
 import { Request, Response, Router } from 'express';
-import { https } from 'follow-redirects';
-import http from 'http';
 import { Html5Entities } from 'html-entities';
 
 import {
-  asyncHandler,
-  eqci,
-  makePlainASCII_UC,
-  notFoundForEverythingElse,
-  processMillis,
-  toInt,
-  toNumber
+  asyncHandler, eqci, getHttpContent, getHttpsContent, makePlainASCII_UC, notFoundForEverythingElse, processMillis, timedPromise, toInt, toNumber
 } from './common';
 import { Connection, pool } from './database';
-import {
-  altFormToStd,
-  code2ToCode3,
-  code3ToCode2,
-  code3ToName,
-  initGazetteer,
-  longStates, nameToCode3,
-  new3ToOld2,
+import { altFormToStd, code2ToCode3, code3ToCode2, code3ToName, initGazetteer, longStates, nameToCode3, new3ToOld2,
   simplify, stateAbbreviations, usCounties, usTerritories
 } from './gazetteer';
 import { SearchResult } from './search-result';
@@ -131,32 +116,19 @@ async function initTimezones() {
 const flagCodes = new Set<string>();
 
 async function initFlagCodes() {
-  return new Promise<any>((resolve, reject) => {
-    https.get('https://skyviewcafe.com/assets/resources/flags/', res => {
-      let allData = '';
+  try {
+    const lines = (await getHttpsContent('https://skyviewcafe.com/assets/resources/flags/')).split(/\r\n|\n|\r/);
 
-      if (res.statusCode === 200) {
-        res.on('data', (data: Buffer) => {
-          allData += data.toString('utf8');
-        });
+    lines.forEach(line => {
+      const match = />(\w+)\.png</.exec(line);
 
-        res.on('end', () => {
-          const lines = allData.split(/\r\n|\n|\r/);
-
-          lines.forEach(line => {
-            const match = />(\w+)\.png</.exec(line);
-
-            if (match)
-              flagCodes.add(match[1]);
-          });
-
-          resolve();
-        });
-      }
-      else
-        reject('init flags error: ' + res.statusCode);
-    }).on('error', err => reject(err));
-  });
+      if (match)
+        flagCodes.add(match[1]);
+    });
+  }
+  catch (err) {
+    throw new Error('initFlagCodes error: ' + err);
+  }
 }
 
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
@@ -171,7 +143,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
   const result = new SearchResult(q, parsed.normalizedSearch);
   let consultRemoteData = false;
-  const remoteSearchResults = {} as RemoteSearchResults;
+  let remoteSearchResults;
   let dbMatchedOnlyBySound = false;
   let dbMatches = new LocationHash();
 
@@ -209,30 +181,14 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     connection.release();
 
     if (consultRemoteData) {
-      try {
-        remoteSearchResults.geoNamesMetrics = {} as GeoNamesMetrics;
-        remoteSearchResults.geoNamesMatches = await geoNamesSearch(parsed.targetCity, parsed.targetState, parsed.doZip, remoteSearchResults.geoNamesMetrics, false);
-      }
-      catch (err) {
-        remoteSearchResults.geoNamesError = err;
-      }
-
-      if (!parsed.doZip) {
-        try {
-          remoteSearchResults.gettyMetrics = {} as GettyMetrics;
-          remoteSearchResults.gettyMatches = await gettySearch(parsed.targetCity, parsed.targetState, remoteSearchResults.gettyMetrics, false);
-        }
-        catch (err) {
-          remoteSearchResults.geoNamesError = err;
-        }
-      }
+      remoteSearchResults = await remoteSourcesSearch(parsed, extend, false);
 
       console.log(remoteSearchResults);
     }
   }
 
   result.time = processMillis() - startTime;
-  res.send(result);
+  res.send(remoteSearchResults);
 }));
 
 function parseSearchString(q: string, mode: ParseMode) {
@@ -344,7 +300,7 @@ function standardizeShortCountyName(county: string): string {
 
   county = county.trim();
   county = county.replace(/ \(.*\)/g, '');
-  county = county.replace(/\s+/g, '');
+  county = county.replace(/\s+/g, ' ');
   county = county.replace(/\s*?-\s*?\b/g, '-');
   county = county.replace(/ (Borough|Census Area|County|Division|Municipality|Parish)/ig, '');
   county = county.replace(/Aleutian Islands/i, 'Aleutians West');
@@ -363,6 +319,7 @@ function standardizeShortCountyName(county: string): string {
   county = county.replace(/^(St. |St )/i, 'Saint ');
   county = county.replace(/Saint Johns/i, "Saint John's");
   county = county.replace(/Saint Marys/i, "Saint Mary's");
+  county = county.replace(/BronxCounty/i, 'Bronx');
 
   const match = /^Mc([a-z])(.*)/.exec(county);
 
@@ -818,29 +775,39 @@ async function doDataBaseSearch(connection: Connection, parsed: ParsedSearchStri
   return matches;
 }
 
+async function remoteSourcesSearch(parsed: ParsedSearchString, extend: boolean, notrace: boolean): Promise<RemoteSearchResults> {
+  const results = {} as RemoteSearchResults;
+
+  results.geoNamesMetrics = {} as GeoNamesMetrics;
+  results.gettyMetrics = {} as GettyMetrics;
+
+  const promises: Promise<LocationHash>[] = [];
+
+  promises.push(geoNamesSearch(parsed.targetCity, parsed.targetState, parsed.doZip, results.geoNamesMetrics, notrace));
+
+  if (extend && !parsed.doZip)
+    promises.push(gettySearch(parsed.targetCity, parsed.targetState, results.gettyMetrics, notrace));
+
+  const locationsOrErrors = await Promise.all(promises.map(promise => promise.catch(err => err)));
+
+  if (locationsOrErrors[0] instanceof Error)
+    results.geoNamesError = (locationsOrErrors[0] as Error).message;
+  else
+    results.geoNamesMatches = locationsOrErrors[0];
+
+  if (locationsOrErrors[1] instanceof Error)
+    results.gettyError = (locationsOrErrors[1] as Error).message;
+  else
+    results.gettyMatches = locationsOrErrors[1];
+
+  results.noErrors = !!(results.geoNamesMatches && results.gettyMatches);
+  results.matches = (results.geoNamesMatches ? results.geoNamesMatches.length : 0) + (results.gettyMatches ? results.gettyMatches.length : 0);
+
+  return results;
+}
+
 async function gettySearch(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationHash> {
-  return new Promise<LocationHash>((resolve, reject) => {
-    let done = false;
-
-    gettySearchAux(targetCity, targetState, metrics, notrace).then(results => {
-      if (!done) {
-        done = true;
-        resolve(results);
-      }
-    }).catch(err => {
-      if (!done) {
-        done = true;
-        reject(err);
-      }
-    });
-
-    setTimeout(() => {
-      if (!done) {
-        done = true;
-        reject('Getty search timed out');
-      }
-    }, MAX_TIME_GETTY * 1000);
-  });
+  return timedPromise(gettySearchAux(targetCity, targetState, metrics, notrace), MAX_TIME_GETTY * 1000, 'Getty search timed out');
 }
 
 async function gettySearchAux(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationHash> {
@@ -862,23 +829,14 @@ async function gettySearchAux(targetCity: string, targetState: string, metrics: 
     let key = originalKeys[i];
     const url = 'http://www.getty.edu/vow/TGNFullDisplay?find=&place=&nation=&english=Y&subjectid=' + key;
     const options = {headers: {'User-Agent': FAKE_USER_AGENT, 'Referer': 'http://www.getty.edu/vow/TGNServlet'}};
-    const lines = await new Promise<string[]>((resolve, reject) => {
-      http.get(url, options, res => {
-        let html = '';
+    let lines: string[];
 
-        if (res.statusCode === 200) {
-          res.on('data', (data: Buffer) => {
-            html += data.toString('utf8');
-          });
-
-          res.on('end', () => {
-            resolve(html.split(/\r\n|\n|\r/));
-          });
-        }
-        else
-          reject('Getty secondary error: ' + res.statusCode);
-      }).on('error', err => reject(err));
-    });
+    try {
+      lines = (await getHttpContent(url, options)).split(/\r\n|\n|\r/);
+    }
+    catch (err) {
+      throw new Error('Getty secondary error: ' + err);
+    }
 
     let pending = false;
     let gotLat = false;
@@ -993,23 +951,14 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
     url += '&page=' + page;
 
     const options = {headers: {'User-Agent': FAKE_USER_AGENT, 'Referer': 'http://www.getty.edu/research/tools/vocabularies/tgn/index.html'}};
-    const lines = await new Promise<string[]>((resolve, reject) => {
-      http.get(url, options, res => {
-        let html = '';
+    let lines: string[];
 
-        if (res.statusCode === 200) {
-          res.on('data', (data: Buffer) => {
-            html += data.toString('utf8');
-          });
-
-          res.on('end', () => {
-            resolve(html.split(/\r\n|\n|\r/));
-          });
-        }
-        else
-          reject('Getty preliminary error: ' + res.statusCode);
-      }).on('error', err => reject(err));
-    });
+    try {
+      lines = (await getHttpContent(url, options)).split(/\r\n|\n|\r/);
+    }
+    catch (err) {
+      throw new Error('Getty preliminary error: ' + err);
+    }
 
     for (let i = 0; i < lines.length; ++i) {
       let line = lines[i];
@@ -1246,28 +1195,7 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
 }
 
 async function geoNamesSearch(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationHash> {
-  return new Promise<LocationHash>((resolve, reject) => {
-    let done = false;
-
-    geoNamesSearchAux(targetCity, targetState, doZip, metrics, notrace).then(results => {
-      if (!done) {
-        done = true;
-        resolve(results);
-      }
-    }).catch(err => {
-      if (!done) {
-        done = true;
-        reject(err);
-      }
-    });
-
-    setTimeout(() => {
-      if (!done) {
-        done = true;
-        reject('GeoNames search timed out');
-      }
-    }, MAX_TIME_GEONAMES * 1000);
-  });
+  return timedPromise(geoNamesSearchAux(targetCity, targetState, doZip, metrics, notrace), MAX_TIME_GEONAMES * 1000, 'GeoNames search timed out');
 }
 
 async function geoNamesSearchAux(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationHash> {
@@ -1294,31 +1222,16 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
 
   url += encodeURIComponent(targetCity);
 
-  // noinspection JSMismatchedCollectionQueryUpdate
   let geonames: any[];
   const options = {headers: {'User-Agent': FAKE_USER_AGENT}};
-  const results = await new Promise<any>((resolve, reject) => {
-    http.get(url, options, res => {
-      let lines = '';
+  let results: any;
 
-      if (res.statusCode === 200) {
-        res.on('data', (data: Buffer) => {
-          lines += data.toString('utf8');
-        });
-
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(lines));
-          }
-          catch (err) {
-            reject('GeoNames error: ' + err);
-          }
-        });
-      }
-      else
-        reject('GeoNames error: ' + res.statusCode);
-    }).on('error', err => reject(err));
-  });
+  try {
+    results = JSON.parse(await getHttpContent(url, options));
+  }
+  catch (err) {
+    throw new Error('GeoNames error: ' + err);
+  }
 
   if (results) {
     if (!doZip && results.totalResultsCount > 0 && Array.isArray(results.geonames))

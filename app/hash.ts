@@ -55,8 +55,8 @@ export class Hash<T extends keyof any, U> {
   }
 
   forEach(fn: (value: U, key?: T) => void): void {
-    // noinspection JSUnfilteredForInLoop
     for (const key in this._keys.keys())
+      // noinspection JSUnfilteredForInLoop
       fn(this.hash[key as T], key as T);
   }
 
