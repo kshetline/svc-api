@@ -86,3 +86,7 @@ export const pool = {
     });
   })
 };
+
+export function logWarning(message: string, notrace = true): void {
+  console.warn(message, notrace);
+}

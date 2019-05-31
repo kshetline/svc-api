@@ -1,8 +1,27 @@
 import { createReadStream, statSync } from 'fs';
 import stream from 'stream';
 import { promisify } from 'util';
-import { makePlainASCII_UC } from './common';
+import { eqci, getWebPage, makePlainASCII_UC } from './common';
+import { AtlasLocation } from './atlas-location';
+import { Html5Entities } from 'html-entities';
+import { MapClass } from './map-class';
+import { logWarning } from './database';
+import { cos, cos_deg, PI, sin_deg } from 'ks-math';
 
+interface ProcessedNames {
+  city: string;
+  variant: string;
+  county: string;
+  state: string;
+  longState: string;
+  country: string;
+  longCountry: string;
+  continent: string;
+}
+
+export class LocationMap extends MapClass<string, AtlasLocation> {}
+
+const entities = new Html5Entities();
 const finished = promisify(stream.finished);
 
 export const longStates: Record<string, string> = {};
@@ -110,6 +129,8 @@ for (let i = 0; i < states.length; i += 2) {
 
 export async function initGazetteer() {
   try {
+    await initFlagCodes();
+
     let path = 'app/data/country_codes.txt';
     let length = statSync(path).size;
     let input = createReadStream(path, {encoding: 'utf8', highWaterMark: length});
@@ -190,6 +211,24 @@ export async function initGazetteer() {
   }
 }
 
+const flagCodes = new Set<string>();
+
+async function initFlagCodes() {
+  try {
+    const lines = (await getWebPage('https://skyviewcafe.com/assets/resources/flags/')).split(/\r\n|\n|\r/);
+
+    lines.forEach(line => {
+      const $ = />(\w+)\.png</.exec(line);
+
+      if ($)
+        flagCodes.add($[1]);
+    });
+  }
+  catch (err) {
+    throw new Error('initFlagCodes error: ' + err);
+  }
+}
+
 const VARIANT_START = /^((CANON DE|CERRO|FORT|FT|ILE D|ILE DE|ILE DU|ILES|ILSA|LA|LAKE|LAS|LE|LOS|MOUNT|MT|POINT|PT|THE) )(.*)/;
 
 export function simplify(s: string, asVariant = false): string {
@@ -244,4 +283,310 @@ export function simplify(s: string, asVariant = false): string {
   }
 
   return sb.join('');
+}
+
+function startsWithICND(testee: string, test: string): boolean { // Ignore Case aNd Diacriticals
+  if (!testee || !test)
+    return false;
+
+  testee = simplify(testee);
+  test   = simplify(test);
+
+  return testee.startsWith(test);
+}
+
+
+export function closeMatchForCity(target: string, candidate: string): boolean {
+  if (!target || !candidate)
+    return false;
+
+  target    = simplify(target);
+  candidate = simplify(candidate);
+
+  return candidate.startsWith(target);
+}
+
+export function closeMatchForState(target: string, state: string, country: string): boolean {
+  if (!target)
+    return true;
+
+  const  longState   = longStates[state];
+  const  longCountry = code3ToName[country];
+  const  code2       = code3ToCode2[country];
+  const  oldCode2    = new3ToOld2[country];
+
+  return (startsWithICND(state, target) ||
+          startsWithICND(country, target) ||
+          startsWithICND(longState, target) ||
+          startsWithICND(longCountry, target) ||
+          (country === 'GBR' && startsWithICND('Great Britain', target)) ||
+          (country === 'GBR' && startsWithICND('England', target)) ||
+          startsWithICND(code2, target) ||
+          startsWithICND(oldCode2, target));
+}
+
+const CLEANUP1 = /^((County(\s+of)?)|((Provincia|Prov\xC3\xADncia|Province|Regi\xC3\xB3n Metropolitana|Distrito|Regi\xC3\xB3n)\s+(de|del|de la|des|di)))/i;
+const CLEANUP2 = /\s+(province|administrative region|national capital region|prefecture|oblast'|oblast|kray|county|district|department|governorate|metropolitan area|territory)$/;
+const CLEANUP3 = /\s+(region|republic)$/;
+
+export function countyStateCleanUp(s: string): string {
+  s = s.replace(CLEANUP1, '');
+  s = s.replace(CLEANUP2, '');
+  s = s.replace(CLEANUP3, '').trim();
+
+  return s;
+}
+
+export function isRecognizedUSCounty(county: string, state: string): boolean {
+  return usCounties.has(county + ', ' + state);
+}
+
+export function standardizeShortCountyName(county: string): string {
+  if (!county)
+    return county;
+
+  county = county.trim();
+  county = county.replace(/ \(.*\)/g, '');
+  county = county.replace(/\s+/g, ' ');
+  county = county.replace(/\s*?-\s*?\b/g, '-');
+  county = county.replace(/ (Borough|Census Area|County|Division|Municipality|Parish)/ig, '');
+  county = county.replace(/Aleutian Islands/i, 'Aleutians West');
+  county = county.replace(/Juneau City and/i, 'Juneau');
+  county = county.replace(/Coös/i, 'Coos');
+  county = county.replace(/De Kalb/i, 'DeKalb');
+  county = county.replace(/De Soto/i, 'DeSoto');
+  county = county.replace(/De Witt/i, 'DeWitt');
+  county = county.replace(/Du Page/i, 'DuPage');
+  county = county.replace(/^La(Crosse|Moure|Paz|Plate|Porte|Salle)/i, 'La $1');
+  county = county.replace(/Skagway-Yakutat-Angoon/i, 'Skagway-Hoonah-Angoon');
+  county = county.replace(/Grays Harbor/i, "Gray's Harbor");
+  county = county.replace(/OBrien/i, "O'Brien");
+  county = county.replace(/Prince Georges/i, "Prince George's");
+  county = county.replace(/Queen Annes"/, "Queen Anne's");
+  county = county.replace(/Scotts Bluff/i, "Scott's Bluff");
+  county = county.replace(/^(St. |St )/i, 'Saint ');
+  county = county.replace(/Saint Johns/i, "Saint John's");
+  county = county.replace(/Saint Marys/i, "Saint Mary's");
+  county = county.replace(/BronxCounty/i, 'Bronx');
+
+  const $ = /^Mc([a-z])(.*)/.exec(county);
+
+  if ($)
+    county = 'Mc' + $[1].toUpperCase() + $[2];
+
+  return county;
+}
+
+export function containsMatchingLocation(matches: LocationMap, location: AtlasLocation): boolean {
+  return matches.values.findIndex(location2 =>
+    location2.city === location.city &&
+    location2.county === location.county &&
+    location2.state === location.state &&
+    location2.country === location.country) >= 0;
+}
+
+export function fixRearrangedName(name: string): {name: string, variant: string} {
+  let variant: string;
+  let $: string[];
+
+  if (($ = /(.+), (\w)(.*')/.exec(name))) {
+    variant = $[1];
+    name = $[2].toUpperCase() + $[3] + variant;
+  }
+  else if (($ = /(.+), (\w)(.*)/.exec(name))) {
+    variant = $[1];
+    name = $[2].toUpperCase() + $[3] + ' ' + variant;
+  }
+
+  return {name, variant};
+}
+
+export function getCode3ForCountry(country: string): string {
+  country = simplify(country).substr(0, 20);
+
+  return nameToCode3[country];
+}
+
+const APARTMENTS_ETC = new RegExp('\\b((mobile|trailer|vehicle)\\s+(acre|city|community|corral|court|estate|garden|grove|harbor|haven|' +
+                                  'home|inn|lodge|lot|manor|park|plaza|ranch|resort|terrace|town|villa|village)s?)|' +
+                                  '((apartment|condominium|\\(subdivision\\))s?)\\b', 'i');
+const IGNORED_PLACES = new RegExp('bloomingtonmn|census designated place|colonia \\(|colonia number|condominium|circonscription electorale d|' +
+                                  'election precinct|\\(historical\\)|mobilehome|subdivision|unorganized territory|\\{|\\}', 'i');
+
+export function processPlaceNames(city: string, county: string, state: string, country: string, continent: string,
+                           decodeHTML = false, notrace = true): ProcessedNames {
+  let abbrevState: string;
+  let code3: string;
+  let longState: string;
+  let longCountry: string;
+  let altForm: string;
+  let origCounty: string;
+  let variant: string;
+
+  if (decodeHTML) {
+    city      = entities.decode(city);
+    county    = entities.decode(county);
+    state     = entities.decode(state);
+    country   = entities.decode(country);
+    continent = entities.decode(continent);
+  }
+
+  if (/\b\d+[a-z]/i.test(city))
+    return null;
+
+  if (APARTMENTS_ETC.test(city))
+    return null;
+
+  if (IGNORED_PLACES.test(city))
+    return null;
+
+  if (/\bParis \d\d\b/i.test(city))
+    return null;
+
+  ({name: city, variant} = fixRearrangedName(city));
+
+  if (/,/.test(city))
+    logWarning(`City name "${city}" (${state}, ${country}) contains a comma.`, notrace);
+
+  let $: string[];
+
+  if (!variant && ($ = /^(lake|mount|(?:mt\.?)|the|la|las|el|le|los)\b(.+)/i.exec(city)))
+    variant = $[2].trim();
+
+  altForm = altFormToStd[simplify(country)];
+
+  if (altForm)
+    country = altForm;
+
+  state  = countyStateCleanUp(state);
+  county = countyStateCleanUp(county);
+
+  longState   = state;
+  longCountry = country;
+  code3       = getCode3ForCountry(country);
+
+  if (code3) {
+    country = code3;
+  }
+  else if (code3ToName[country]) {
+    longCountry = code3ToName[country];
+  }
+  else {
+    logWarning(`Failed to recognize country "${country}" for city "${city}, ${state}".`, notrace);
+    country = country.replace(/^(.{0,2}).*$/, '$1?');
+  }
+
+  if (state.toLowerCase().endsWith(' state')) {
+    state = state.substr(0, state.length - 6);
+  }
+
+  if (country === 'USA' || country === 'CAN') {
+    if (state && longStates[state])
+      longState = longStates[state];
+    else if (state) {
+      abbrevState = stateAbbreviations[makePlainASCII_UC(state)];
+
+      if (abbrevState) {
+        abbrevState = state;
+        abbrevState = abbrevState.replace(/ (state|province)$/i, '');
+        abbrevState = stateAbbreviations[makePlainASCII_UC(abbrevState)];
+      }
+
+      if (abbrevState)
+        state = abbrevState;
+      else
+        logWarning(`Failed to recognize state/province "${state}" in country ${country}.`, notrace);
+    }
+
+    if (county && country === 'USA' && usTerritories.indexOf(state) < 0) {
+      origCounty = county;
+      county = standardizeShortCountyName(county);
+
+      if (!isRecognizedUSCounty(county, state)) {
+        county = origCounty;
+
+        if (county === 'District of Columbia')
+          county = 'Washington';
+
+        county = county.replace(/^City of /i, '');
+        county = county.replace(/\s(Indep. City|Independent City|Independent|City|Division|Municipality)$/i, '');
+
+        if (county !== origCounty) {
+          if (simplify(origCounty) === simplify(city) || simplify(county) === simplify(city)) {
+            // City is its own county in a sense -- and independent city. Blank out the redundancy.
+            county = undefined;
+          }
+          // Otherwise, this is probably a neighborhood in an independent city. We'll treat
+          // the independent city as a county, being that it's a higher administrative level,
+          // adding "City of" where appropriate.
+          else if (/city|division|municipality/i.test(city))
+            county = 'City of ' + county;
+        }
+        else
+          logWarning(`Failed to recognize US county "${county}" for city "${city}".`, notrace);
+      }
+    }
+  }
+
+  return {city, variant, county, state, longState, country, longCountry, continent};
+}
+
+export function getFlagCode(country: string, state: string): string {
+  let code;
+
+  if (country === 'GBR' && eqci(state, 'England'))
+    code = 'england';
+  else if (country === 'GBR' && eqci(state, 'Scotland'))
+    code = 'scotland';
+  else if (country === 'GBR' && eqci(state, 'Wales'))
+    code = 'wales';
+  else if (country === 'ESP' && eqci(state, 'Catalonia'))
+    code = 'catalonia';
+  else
+    code = code3ToCode2[country];
+
+  if (code) {
+    code = code.toLowerCase();
+
+    if (!flagCodes.has(code))
+      code = undefined;
+  }
+  else
+    code = undefined;
+
+  return code;
+}
+
+export function roughDistanceBetweenLocationsInKm(lat1: number, long1: number, lat2: number, long2: number): number {
+  let deltaRad = cos(sin_deg(lat1) * sin_deg(lat2) + cos_deg(lat1) * cos_deg(lat2) * cos_deg(long1 - long2));
+
+  while (deltaRad > PI)
+    deltaRad -= PI;
+
+  while (deltaRad < -PI)
+    deltaRad += PI;
+
+  return deltaRad * 6378.14; // deltaRad * radius_of_earth_in_km
+}
+
+export function makeLocationKey(city: string, state: string, country: string, otherLocations: LocationMap): string {
+  let baseKey: string;
+  let key: string;
+  let index = 1;
+
+  city = simplify(city, false);
+
+  if (state && (country === 'USA' || country === 'CAN'))
+    key = city + ',' + state;
+  else
+    key = city + ',' + country;
+
+  baseKey = key;
+
+  while (otherLocations.has(key)) {
+    ++index;
+    key = baseKey + '(' + index + ')';
+  }
+
+  return key;
 }
