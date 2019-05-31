@@ -51,7 +51,8 @@ export class AtlasLocation {
   source: number;
   matchedByAlternateName = false;
   matchedBySound = false;
-  geonameID: number;
+  geonameID?: number;
+  useAsUpdate?: boolean;
 
   getZoneOffset(): number {
     const zoneName = /(.*?)(\?)?$/.exec(this.zone)[1];
@@ -164,6 +165,7 @@ export class AtlasLocation {
     Object.assign(copy, this);
     copy.displayName = this.displayName;
     delete copy.geonameID;
+    delete copy.useAsUpdate;
 
     return copy;
   }

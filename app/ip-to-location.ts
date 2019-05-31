@@ -12,9 +12,9 @@ const times: number[] = [];
 router.get('/json/*', (req: Request, res: Response) => {
   const [url, paramStr] = req.url.split('?');
   const params = querystring.parse(paramStr);
-  const matches = /^\/json(\/(.*))?$/.exec(url);
+  const $ = /^\/json(\/(.*))?$/.exec(url);
 
-  if (matches) {
+  if ($) {
     const now = processMillis();
 
     if (times.length === MAX_PER_MINUTE && times[0] > now - 60000) {
@@ -34,7 +34,7 @@ router.get('/json/*', (req: Request, res: Response) => {
         times.shift();
       }
 
-      let address = matches[2];
+      let address = $[2];
 
       if (!address) {
         address = requestIp.getClientIp(req);

@@ -11,6 +11,7 @@ import { altFormToStd, code2ToCode3, code3ToCode2, code3ToName, initGazetteer, l
 import { SearchResult } from './search-result';
 import { AtlasLocation } from './atlas-location';
 import { MapClass } from './map-class';
+import { cos, cos_deg, max, PI, sin_deg } from 'ks-math';
 
 export const router = Router();
 
@@ -28,6 +29,8 @@ interface ParsedSearchString {
 }
 
 class LocationMap extends MapClass<string, AtlasLocation> {}
+
+class LocationArrayMap extends MapClass<string, AtlasLocation[]> {}
 
 interface GeoNamesMetrics {
  retrievalTime: number;
@@ -119,10 +122,10 @@ async function initFlagCodes() {
     const lines = (await getWebPage('https://skyviewcafe.com/assets/resources/flags/')).split(/\r\n|\n|\r/);
 
     lines.forEach(line => {
-      const groups = />(\w+)\.png</.exec(line);
+      const $ = />(\w+)\.png</.exec(line);
 
-      if (groups)
-        flagCodes.add(groups[1]);
+      if ($)
+        flagCodes.add($[1]);
     });
   }
   catch (err) {
@@ -134,8 +137,10 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const q = req.query.q ? req.query.q.trim() : 'Nashua, NH';
   const version = toInt(req.query.version, 9);
   const remoteMode = (/skip|normal|extend|forced|only/i.test(req.query.remote) ? req.query.remote.toLowerCase() : 'skip') as RemoteMode;
-  const extend = (remoteMode === 'extend' || remoteMode === 'only');
+  const extend = (remoteMode === 'extend' || remoteMode === 'only' || remoteMode === 'forced');
   const limit = Math.min(toInt(req.query.limit, DEFAULT_MATCH_LIMIT), MAX_MATCH_LIMIT);
+  let dbError: string;
+  let gotBetterMatchesFromRemoteData = false;
 
   const parsed = parseSearchString(q, version < 3 ? 'loose' : 'strict');
   const startTime = processMillis();
@@ -144,9 +149,9 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   let consultRemoteData = false;
   let remoteSearchResults;
   let dbMatchedOnlyBySound = false;
-  let dbMatches = new LocationMap();
+  let dbMatches: LocationMap;
 
-  for (let attempt = 0; attempt < 2 - 1; ++attempt) {
+  for (let attempt = 0; attempt < 2; ++attempt) {
     const connection = await pool.getConnection();
 
     if (remoteMode === 'only' ||
@@ -163,17 +168,27 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     // }
 
     if (remoteMode === 'only')
-      dbMatches.clear();
+      dbMatches = undefined;
     else {
-      dbMatches = await doDataBaseSearch(connection, parsed, extend, limit + 1);
-      dbMatchedOnlyBySound = true;
+      try {
+        dbMatches = await doDataBaseSearch(connection, parsed, extend, limit + 1);
+        dbMatchedOnlyBySound = true;
 
-      dbMatches.values.every(location => {
-        if (!location.matchedBySound)
-          dbMatchedOnlyBySound = false;
+        dbMatches.values.every(location => {
+          if (!location.matchedBySound)
+            dbMatchedOnlyBySound = false;
 
-        return !dbMatchedOnlyBySound;
-      });
+          return !dbMatchedOnlyBySound;
+        });
+
+        dbError = undefined;
+      }
+      catch (err) {
+        dbError = err.toString();
+
+        if (attempt === 0)
+          continue;
+      }
     }
 
     connection.release();
@@ -181,12 +196,41 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     if (consultRemoteData) {
       remoteSearchResults = await remoteSourcesSearch(parsed, extend, false);
 
-      console.log(remoteSearchResults);
+      if (remoteSearchResults.matches > 0 && dbMatchedOnlyBySound) {
+        gotBetterMatchesFromRemoteData = true;
+        dbMatches = undefined;
+      }
     }
+
+    break;
   }
 
+  const mergedMatches = new LocationArrayMap();
+
+  if (dbMatches)
+    copyAndMergeLocations(mergedMatches, dbMatches);
+
+  if (remoteSearchResults) {
+    if (remoteSearchResults.geoNamesMatches)
+      copyAndMergeLocations(mergedMatches, remoteSearchResults.geoNamesMatches);
+
+    if (remoteSearchResults.gettyMatches)
+      copyAndMergeLocations(mergedMatches, remoteSearchResults.gettyMatches);
+  }
+
+  const uniqueMatches = eliminateDuplicates(mergedMatches, limit + 1);
+
+  if (uniqueMatches.length > limit) {
+    uniqueMatches.length = limit;
+    result.limitReached = true;
+  }
+
+  console.log(dbError, gotBetterMatchesFromRemoteData);
+
+  result.matches = uniqueMatches;
   result.time = processMillis() - startTime;
-  res.send(remoteSearchResults);
+
+  res.send(result);
 }));
 
 function parseSearchString(q: string, mode: ParseMode) {
@@ -195,11 +239,11 @@ function parseSearchString(q: string, mode: ParseMode) {
   let targetCity = parts[0];
   let targetState = parts[1] ? parts[1].trim() : '';
   let targetCountry = parts[2] ? parts[2].trim() : '';
-  let matcher: string[];
+  let $: string[];
 
   // US ZIP codes
-  if ((matcher = US_ZIP_PATTERN.exec(targetCity))) {
-    targetCity = matcher[1];
+  if (($ = US_ZIP_PATTERN.exec(targetCity))) {
+    targetCity = $[1];
     parsed.doZip = true;
   }
   // Other postal codes
@@ -216,9 +260,9 @@ function parseSearchString(q: string, mode: ParseMode) {
   if (targetCountry)
     targetState = targetCountry;
 
-  if (mode === 'loose' && !targetState && (matcher = TRAILING_STATE_PATTERN.exec(targetCity))) {
-    const start = matcher[1].trim();
-    const end = matcher[2];
+  if (mode === 'loose' && !targetState && ($ = TRAILING_STATE_PATTERN.exec(targetCity))) {
+    const start = $[1].trim();
+    const end = $[2];
 
     if (longStates[end] || code3ToName[end]) {
       targetCity = start;
@@ -480,6 +524,227 @@ function processPlaceNames(city: string, county: string, state: string, country:
   }
 
   return {city, variant, county, state, longState, country, longCountry, continent};
+}
+
+function copyAndMergeLocations(destination: LocationArrayMap, source: LocationMap): void {
+  source.keys.forEach(key => {
+    const location = source.get(key);
+    let locations: AtlasLocation[];
+
+    key = key.replace(/\(\d+\)$/, '');
+
+    if (destination.has(key))
+      locations = destination.get(key);
+    else {
+      locations = [];
+      destination.set(key, locations);
+    }
+
+    locations.push(location);
+  });
+}
+
+function roughDistanceBetweenLocationsInKm(lat1: number, long1: number, lat2: number, long2: number): number {
+  let deltaRad = cos(sin_deg(lat1) * sin_deg(lat2) + cos_deg(lat1) * cos_deg(lat2) * cos_deg(long1 - long2));
+
+  while (deltaRad > PI)
+    deltaRad -= PI;
+
+  while (deltaRad < -PI)
+    deltaRad += PI;
+
+  return deltaRad * 6378.14; // deltaRad * radius_of_earth_in_km
+}
+
+const MATCH_ADM  = /^A\.ADM/i;
+const MATCH_PPL  = /^P\.PPL/i;
+const MATCH_PPLX = /^P\.PPL\w/i;
+
+function eliminateDuplicates(mergedMatches: LocationArrayMap, limit: number): AtlasLocation[] {
+  const keys = mergedMatches.keys.sort();
+
+  keys.forEach(key => {
+    const locations = mergedMatches.get(key);
+
+    for (let i = 0; i < locations.length - 1; ++i) {
+      const location1 = locations[i];
+
+      if (!location1)
+        continue;
+
+      const city1       = location1.city;
+      const county1     = location1.county;
+      const state1      = location1.state;
+      const country1    = location1.country;
+      const latitude1   = location1.latitude;
+      const longitude1  = location1.longitude;
+      let zone1       = location1.zone;
+      const zip1        = location1.zip;
+      const rank1       = location1.rank;
+      let placeType1  = location1.placeType;
+      const source1     = location1.source;
+      const geonameID1  = location1.geonameID;
+
+      if (!zone1)
+        zone1 = '?';
+
+      for (let j = i + 1; j < locations.length; ++j) {
+        const location2 = locations[j];
+
+        if (!location2)
+          continue;
+
+        const county2     = location2.county;
+        const state2      = location2.state;
+        const latitude2   = location2.latitude;
+        const longitude2  = location2.longitude;
+        let zone2       = location2.zone;
+        const zip2        = location2.zip;
+        const rank2       = location2.rank;
+        let placeType2  = location2.placeType;
+        const source2     = location2.source;
+        const geonameID2  = location2.geonameID;
+
+        if (zone2 == null)
+          zone2 = '?';
+
+        if (MATCH_ADM.test(placeType1) && MATCH_PPL.test(placeType2))
+          placeType1 = placeType2;
+
+        if (MATCH_ADM.test(placeType2) && MATCH_PPL.test(placeType1))
+          placeType2 = placeType1;
+
+        if (MATCH_PPL.test(placeType1) && MATCH_PPLX.test(placeType2))
+          placeType1 = placeType2;
+
+        if (MATCH_PPL.test(placeType2) && MATCH_PPLX.test(placeType1))
+          placeType2 = placeType1;
+
+        const distance = roughDistanceBetweenLocationsInKm(latitude1, longitude1, latitude2, longitude2);
+
+        // If locations are close and one location has a questionable time zone, but the other is more
+        // certain, use the more certain time zone for both locations.
+        if (distance < 10) {
+          if (zone1.endsWith('?') && !zone2.endsWith('?'))
+            location1.zone = zone2;
+          else if (zone2.endsWith('?') && !zone1.endsWith('?'))
+            location2.zone = zone1;
+        }
+
+        // Newer GeoNames data for the same location should replace older.
+        if (geonameID1 && geonameID1 === geonameID2) {
+          if (source1 > source2) {
+            locations[j] = undefined;
+            location1.rank = max(rank1, rank2);
+            location1.zip = (zip1 ? zip1 : zip2);
+            location1.source = source2;
+            location1.useAsUpdate = !location1.isCloseMatch(location2);
+          }
+          else {
+            locations[i] = undefined;
+            location2.rank = max(rank1, rank2);
+            location1.zip = (zip2 ? zip2 : zip1);
+            location2.source = source1;
+            location2.useAsUpdate = (source2 > source1 && !location2.isCloseMatch(location1));
+            // After eliminating location1 (index i), end j loop since there's nothing left from the outer loop for inner
+            // loop locations to be compared to.
+            break;
+          }
+        }
+        else if (distance < 10 && placeType2 === 'T.PK' && placeType1 === 'T.MT') {
+          locations[i] = undefined;
+          break;
+        }
+        // Favor peak (T.PK) place types over mountain (T.MT) place types.
+        else if (distance < 10 && placeType1 === 'T.PK' && placeType2 === 'T.MT') {
+          locations[j] = undefined;
+        }
+        else if (placeType1 !== placeType2) {
+          // Do nothing - differing place types of non-city items will be noted.
+        }
+        else if (state1 !== state2) {
+          if (distance < 10 && state1 && state2)
+            console.warn(`Possible detail conflict for same location: ${city1}, ${state1}/${state2}, ${country1}`);
+
+          if (rank2 > rank1) {
+            locations[i] = undefined;
+            break;
+          }
+          else if (rank1 > rank2 || !state2) {
+            locations[j] = undefined;
+          }
+          else if (!state1) {
+            locations[i] = undefined;
+            break;
+          }
+          else {
+            location1.showState = true;
+            location2.showState = true;
+          }
+        }
+        else if (county1 !== county2) {
+          if (distance < 10 && county1 && county2)
+            console.warn(`Possible detail conflict for same location: ${city1}, ${county1}/${county2}, ${state1}, ${country1}`);
+
+          if (rank2 > rank1) {
+            locations[i] = undefined;
+            break;
+          }
+          else if (rank1 > rank2 || !county2)
+            locations[j] = undefined;
+          else if (!county1) {
+            locations[i] = undefined;
+            break;
+          }
+          else {
+            location1.showCounty = true;
+            location2.showCounty = true;
+          }
+        }
+        else if (rank2 > rank1) {
+          if (source1 < MIN_EXTERNAL_SOURCE && source2 >= MIN_EXTERNAL_SOURCE) {
+            // Favor SVC's database entry, but keep higher rank.
+            locations[j] = undefined;
+            location1.rank = rank2;
+          }
+          else {
+            locations[i] = undefined;
+            break;
+          }
+        }
+        else if ((zip1 && !zip2) || rank1 > rank2) {
+          if (source2 < MIN_EXTERNAL_SOURCE && source1 >= MIN_EXTERNAL_SOURCE) {
+            // Favor SVC's database entry, but keep higher rank.
+            locations[i] = undefined;
+            location2.rank = max(rank1, rank2);
+            location2.zip = (zip1 ? zip1 : zip2);
+            break;
+          }
+          else
+            locations[j] = undefined;
+        }
+        else if (source1 < MIN_EXTERNAL_SOURCE && source2 >= MIN_EXTERNAL_SOURCE)
+          locations[j] = undefined;
+        else {
+          locations[i] = undefined;
+          break;
+        }
+      }
+    }
+  });
+
+  const uniqueMatches: AtlasLocation[] = [];
+
+  keys.forEach(key => {
+    const locations = mergedMatches.get(key);
+
+    locations.forEach(location => {
+      if (location && uniqueMatches.length < limit)
+        uniqueMatches.push(location);
+    });
+  });
+
+  return uniqueMatches.sort();
 }
 
 function getFlagCode(country: string, state: string): string {
@@ -780,11 +1045,14 @@ async function remoteSourcesSearch(parsed: ParsedSearchString, extend: boolean, 
   results.gettyMetrics = {} as GettyMetrics;
 
   const promises: Promise<LocationMap>[] = [];
+  let includeGetty = false;
 
   promises.push(geoNamesSearch(parsed.targetCity, parsed.targetState, parsed.doZip, results.geoNamesMetrics, notrace));
 
-  if (extend && !parsed.doZip)
+  if (extend && !parsed.doZip) {
     promises.push(gettySearch(parsed.targetCity, parsed.targetState, results.gettyMetrics, notrace));
+    includeGetty = true;
+  }
 
   const locationsOrErrors = await Promise.all(promises.map(promise => promise.catch(err => err)));
 
@@ -798,7 +1066,7 @@ async function remoteSourcesSearch(parsed: ParsedSearchString, extend: boolean, 
   else
     results.gettyMatches = locationsOrErrors[1];
 
-  results.noErrors = !!(results.geoNamesMatches && results.gettyMatches);
+  results.noErrors = !!(results.geoNamesMatches && (!includeGetty || results.gettyMatches));
   results.matches = (results.geoNamesMatches ? results.geoNamesMatches.size : 0) + (results.gettyMatches ? results.gettyMatches.size : 0);
 
   return results;

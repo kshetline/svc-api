@@ -217,10 +217,10 @@ export function simplify(s: string, asVariant = false): string {
   s = sb.join('');
 
   if (asVariant) {
-    const match = VARIANT_START.exec(s);
+    const $ = VARIANT_START.exec(s);
 
-    if (match)
-      s = match[3];
+    if ($)
+      s = $[3];
   }
   else if (s.startsWith('FORT '))
     s = 'FT' + s.substring(5);
