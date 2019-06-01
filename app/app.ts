@@ -13,12 +13,12 @@ const app: Application = express();
 
 app.use(morgan('tiny'));
 
-app.get('/', (req: Request, res: Response) => {
-  res.send('Hello World!');
-});
-
 app.use('/atlas/', atlasRouter);
 app.use('/ip/', ipToLocationRouter);
+app.use(express.static('../public'));
+app.get('/', (req: Request, res: Response) => {
+  res.send('Static home file not found');
+});
 
 (async () => {
   try {
