@@ -21,9 +21,15 @@ app.use('/atlas/', atlasRouter);
 app.use('/ip/', ipToLocationRouter);
 
 (async () => {
-  await initAtlas();
+  try {
+    await initAtlas();
 
-  app.listen(port, () => {
-    console.log(`Sky View Café listening on port ${port}.`);
-  });
+    app.listen(port, () => {
+      console.log(`Sky View Café listening on port ${port}.`);
+    });
+  }
+  catch (err) {
+    console.error('svc-api failed to start');
+    process.exit(1);
+  }
 })();

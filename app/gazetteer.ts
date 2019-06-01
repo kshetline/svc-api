@@ -8,6 +8,20 @@ import { MapClass } from './map-class';
 import { logWarning } from './atlas_database';
 import { cos, cos_deg, PI, sin_deg } from 'ks-math';
 
+export interface ParsedSearchString {
+  targetCity: string;
+  targetState: string;
+  doZip: boolean;
+  actualSearch: string;
+  normalizedSearch: string;
+}
+
+export type ParseMode = 'loose' | 'strict';
+
+const US_ZIP_PATTERN = /(\d{5})(-\d{4,6})?/;
+const OTHER_POSTAL_CODE_PATTERN = /[0-9A-Z]{2,8}((-|\s+)[0-9A-Z]{2,6})?/i;
+const TRAILING_STATE_PATTERN = /(.+)\b(\w{2,3})$/;
+
 interface ProcessedNames {
   city: string;
   variant: string;
@@ -589,4 +603,51 @@ export function makeLocationKey(city: string, state: string, country: string, ot
   }
 
   return key;
+}
+
+export function parseSearchString(q: string, mode: ParseMode): ParsedSearchString {
+  const parsed = {doZip: false, actualSearch: q} as ParsedSearchString;
+  const parts = q.split(',');
+  let targetCity = parts[0];
+  let targetState = parts[1] ? parts[1].trim() : '';
+  let targetCountry = parts[2] ? parts[2].trim() : '';
+  let $: string[];
+
+  // US ZIP codes
+  if (($ = US_ZIP_PATTERN.exec(targetCity))) {
+    targetCity = $[1];
+    parsed.doZip = true;
+  }
+  // Other postal codes
+  else if (/\d/.test(targetCity) && OTHER_POSTAL_CODE_PATTERN.exec(targetCity)) {
+    targetCity = targetCity.toUpperCase();
+    parsed.doZip = true;
+  }
+  else
+    targetCity = makePlainASCII_UC(targetCity);
+
+  targetState = makePlainASCII_UC(targetState);
+  targetCountry = makePlainASCII_UC(targetCountry);
+
+  if (targetCountry)
+    targetState = targetCountry;
+
+  if (mode === 'loose' && !targetState && ($ = TRAILING_STATE_PATTERN.exec(targetCity))) {
+    const start = $[1].trim();
+    const end = $[2];
+
+    if (longStates[end] || code3ToName[end]) {
+      targetCity = start;
+      targetState = end;
+    }
+  }
+
+  parsed.targetCity = targetCity;
+  parsed.targetState = targetState;
+  parsed.normalizedSearch = targetCity;
+
+  if (targetState)
+    parsed.normalizedSearch += ', ' + targetState;
+
+  return parsed;
 }
