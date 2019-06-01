@@ -1,7 +1,7 @@
 import { Request, Response, Router } from 'express';
 
 import { asyncHandler, makePlainASCII_UC, notFoundForEverythingElse, processMillis, toInt } from './common';
-import { Connection, pool } from './database';
+import { pool } from './atlas_database';
 import {
   closeMatchForState, code3ToName, countyStateCleanUp, getFlagCode, initGazetteer, LocationMap, longStates,
   makeLocationKey, roughDistanceBetweenLocationsInKm, simplify
@@ -12,10 +12,11 @@ import { MapClass } from './map-class';
 import { GettyMetrics, gettySearch } from './getty-search';
 import { initTimezones } from './timezones';
 import { GeoNamesMetrics, geoNamesSearch } from './geo-names-search';
+import { PoolConnection } from './mysql-await-async';
 
 export const router = Router();
 
-type RemoteMode = 'skip' | 'normal' | 'extend' | 'forced' | 'only';
+type RemoteMode = 'skip' | 'normal' | 'extend' | 'forced' | 'only' | 'geonames' | 'getty';
 type ParseMode = 'loose' | 'strict';
 
 enum MatchType {EXACT_MATCH = 0, EXACT_MATCH_ALT, STARTS_WITH, SOUNDS_LIKE}
@@ -65,7 +66,8 @@ export async function initAtlas() {
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const q = req.query.q ? req.query.q.trim() : 'Nashua, NH';
   const version = toInt(req.query.version, 9);
-  const remoteMode = (/skip|normal|extend|forced|only/i.test(req.query.remote) ? req.query.remote.toLowerCase() : 'skip') as RemoteMode;
+  const remoteMode = (/skip|normal|extend|forced|only|geonames|getty/i.test(req.query.remote) ? req.query.remote.toLowerCase() : 'skip') as RemoteMode;
+  const withoutDB = /only|geonames|getty/i.test(remoteMode);
   const extend = (remoteMode === 'extend' || remoteMode === 'only' || remoteMode === 'forced');
   const limit = Math.min(toInt(req.query.limit, DEFAULT_MATCH_LIMIT), MAX_MATCH_LIMIT);
   let dbError: string;
@@ -83,9 +85,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   for (let attempt = 0; attempt < 2; ++attempt) {
     const connection = await pool.getConnection();
 
-    if (remoteMode === 'only' ||
-        (remoteMode !== 'skip' && (remoteMode === 'forced' ||
-        !(await hasSearchBeenDoneRecently(connection, parsed.normalizedSearch, extend)))))
+    if (/forced|only|geonames|getty/i.test(remoteMode) ||
+        (remoteMode !== 'skip' && !(await hasSearchBeenDoneRecently(connection, parsed.normalizedSearch, extend))))
     {
       consultRemoteData = true;
     }
@@ -96,7 +97,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     //   lastInit = Util.elapsedTimeSeconds();
     // }
 
-    if (remoteMode === 'only')
+    if (withoutDB)
       dbMatches = undefined;
     else {
       try {
@@ -123,7 +124,10 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     connection.release();
 
     if (consultRemoteData) {
-      remoteSearchResults = await remoteSourcesSearch(parsed, extend, false);
+      const doGeonames = remoteMode !== 'getty';
+      const doGetty = remoteMode !== 'geonames';
+
+      remoteSearchResults = await remoteSourcesSearch(parsed, doGeonames, doGetty, false);
 
       if (remoteSearchResults.matches > 0 && dbMatchedOnlyBySound) {
         gotBetterMatchesFromRemoteData = true;
@@ -418,11 +422,11 @@ function eliminateDuplicates(mergedMatches: LocationArrayMap, limit: number): At
   return uniqueMatches.sort();
 }
 
-async function hasSearchBeenDoneRecently(connection: Connection, searchStr: string, extended: boolean): Promise<boolean> {
+async function hasSearchBeenDoneRecently(connection: PoolConnection, searchStr: string, extended: boolean): Promise<boolean> {
   return await logSearchResults(connection, searchStr, extended, NO_RESULTS_YET, false);
 }
 
-async function logSearchResults(connection: Connection, searchStr: string, extended: boolean, matchCount: number, dbUpdate: boolean): Promise<boolean> {
+async function logSearchResults(connection: PoolConnection, searchStr: string, extended: boolean, matchCount: number, dbUpdate: boolean): Promise<boolean> {
   let dbHits = 0;
   let ageMonths = -1;
   let found = false;
@@ -467,7 +471,7 @@ async function logSearchResults(connection: Connection, searchStr: string, exten
   return found;
 }
 
-async function doDataBaseSearch(connection: Connection, parsed: ParsedSearchString, extendedSearch: boolean, maxMatches: number): Promise<LocationMap> {
+async function doDataBaseSearch(connection: PoolConnection, parsed: ParsedSearchString, extendedSearch: boolean, maxMatches: number): Promise<LocationMap> {
   const simplifiedCity = simplify(parsed.targetCity);
   const examined = new Set<number>();
   const matches = new LocationMap();
@@ -628,36 +632,55 @@ async function doDataBaseSearch(connection: Connection, parsed: ParsedSearchStri
   return matches;
 }
 
-async function remoteSourcesSearch(parsed: ParsedSearchString, extend: boolean, notrace: boolean): Promise<RemoteSearchResults> {
+async function remoteSourcesSearch(parsed: ParsedSearchString, doGeonames: boolean, doGetty: boolean, notrace: boolean): Promise<RemoteSearchResults> {
   const results = {} as RemoteSearchResults;
 
   results.geoNamesMetrics = {} as GeoNamesMetrics;
   results.gettyMetrics = {} as GettyMetrics;
 
   const promises: Promise<LocationMap>[] = [];
-  let includeGetty = false;
+  let geoNamesIndex = -1;
+  let gettyIndex = -1;
+  let nextIndex = 0;
+  let noErrors = true;
+  let matches = 0;
 
-  promises.push(geoNamesSearch(parsed.targetCity, parsed.targetState, parsed.doZip, results.geoNamesMetrics, notrace));
+  if (doGeonames) {
+    geoNamesIndex = nextIndex++;
+    promises.push(geoNamesSearch(parsed.targetCity, parsed.targetState, parsed.doZip, results.geoNamesMetrics, notrace));
+  }
 
-  if (extend && !parsed.doZip) {
+  if (doGetty && !parsed.doZip) {
+    gettyIndex = nextIndex++;
     promises.push(gettySearch(parsed.targetCity, parsed.targetState, results.gettyMetrics, notrace));
-    includeGetty = true;
   }
 
   const locationsOrErrors = await Promise.all(promises.map(promise => promise.catch(err => err)));
 
-  if (locationsOrErrors[0] instanceof Error)
-    results.geoNamesError = (locationsOrErrors[0] as Error).message;
-  else
-    results.geoNamesMatches = locationsOrErrors[0];
+  if (geoNamesIndex >= 0) {
+    if (locationsOrErrors[geoNamesIndex] instanceof Error) {
+      results.geoNamesError = (locationsOrErrors[geoNamesIndex] as Error).message;
+      noErrors = false;
+    }
+    else {
+      results.geoNamesMatches = locationsOrErrors[geoNamesIndex];
+      matches += results.geoNamesMatches.size;
+    }
+  }
 
-  if (locationsOrErrors[1] instanceof Error)
-    results.gettyError = (locationsOrErrors[1] as Error).message;
-  else
-    results.gettyMatches = locationsOrErrors[1];
+  if (gettyIndex >= 0) {
+    if (locationsOrErrors[gettyIndex] instanceof Error) {
+      results.gettyError = (locationsOrErrors[gettyIndex] as Error).message;
+      noErrors = false;
+    }
+    else {
+      results.gettyMatches = locationsOrErrors[gettyIndex];
+      matches += results.gettyMatches.size;
+    }
+  }
 
-  results.noErrors = !!(results.geoNamesMatches && (!includeGetty || results.gettyMatches));
-  results.matches = (results.geoNamesMatches ? results.geoNamesMatches.size : 0) + (results.gettyMatches ? results.gettyMatches.size : 0);
+  results.noErrors = noErrors;
+  results.matches = matches;
 
   return results;
 }

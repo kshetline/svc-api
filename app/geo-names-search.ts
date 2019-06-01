@@ -1,4 +1,5 @@
-import { closeMatchForCity, closeMatchForState, code2ToCode3, containsMatchingLocation, getFlagCode, LocationMap, makeLocationKey, processPlaceNames, standardizeShortCountyName } from './gazetteer';
+import { closeMatchForCity, closeMatchForState, code2ToCode3, containsMatchingLocation, getFlagCode, LocationMap,
+  makeLocationKey, processPlaceNames, standardizeShortCountyName } from './gazetteer';
 import { getWebPage, processMillis, timedPromise, toInt } from './common';
 import { AtlasLocation } from './atlas-location';
 
@@ -37,7 +38,7 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
          + '&featureCode=PPLA4&featureCode=PPLC&featureCode=PPLF&featureCode=PPLG&featureCode=PPLL&featureCode=PPLQ&featureCode=PPLR'
          + '&featureCode=PPLS&featureCode=PPLW&featureCode=PPLX&featureCode=ASTR&featureCode=ATHF&featureCode=CTRS&featureCode=OBS'
          + '&featureCode=STNB&featureCode=ATOL&featureCode=CAPE&featureCode=ISL&featureCode=MT&featureCode=PK'
-         + '&q=';
+         + '&name_startsWith=';
   }
 
   url += encodeURIComponent(targetCity);

@@ -233,7 +233,7 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
             if (!vernacular && ($ = /Vernacular: (.+?)(<|$)/.exec(line))) {
               vernacular = $[1].trim();
             }
-            else if (($ = /<B>(.+)<\/B><BR>/.exec(line))) {
+            else if (($ = /<B>(\D.+)<\/B><BR>/.exec(line))) {
               if (altNames)
                 altNames += ';';
 
@@ -371,6 +371,7 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
             location.placeType = placeType;
             location.variant = variant;
             location.source = SOURCE_GETTY_UPDATE;
+            location.rank = 0; // TODO: Can be improved?
 
             if (!containsMatchingLocation(keyedPlaces, location) &&
                 !containsMatchingLocation(altKeyedPlaces, location))

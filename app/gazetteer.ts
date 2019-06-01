@@ -5,7 +5,7 @@ import { eqci, getWebPage, makePlainASCII_UC } from './common';
 import { AtlasLocation } from './atlas-location';
 import { Html5Entities } from 'html-entities';
 import { MapClass } from './map-class';
-import { logWarning } from './database';
+import { logWarning } from './atlas_database';
 import { cos, cos_deg, PI, sin_deg } from 'ks-math';
 
 interface ProcessedNames {
