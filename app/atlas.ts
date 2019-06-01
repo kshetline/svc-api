@@ -1,6 +1,7 @@
 import { Request, Response, Router } from 'express';
+import mime from 'mime';
 
-import { asyncHandler, notFoundForEverythingElse, processMillis, toInt } from './common';
+import { asyncHandler, notFoundForEverythingElse, processMillis, toBoolean, toInt } from './common';
 import { doDataBaseSearch, hasSearchBeenDoneRecently, pool } from './atlas_database';
 import { initGazetteer, LocationMap, ParsedSearchString, parseSearchString, roughDistanceBetweenLocationsInKm } from './gazetteer';
 import { SearchResult } from './search-result';
@@ -45,6 +46,8 @@ export async function initAtlas() {
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const q = req.query.q ? req.query.q.trim() : 'Nashua, NH';
   const version = toInt(req.query.version, 9);
+  const callback = req.query.callback;
+  const plainText = toBoolean(req.query.pt, true);
   const remoteMode = (/skip|normal|extend|forced|only|geonames|getty/i.test(req.query.remote) ? req.query.remote.toLowerCase() : 'skip') as RemoteMode;
   const withoutDB = /only|geonames|getty/i.test(remoteMode);
   const extend = (remoteMode === 'extend' || remoteMode === 'only' || remoteMode === 'forced');
@@ -142,7 +145,14 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   result.matches = uniqueMatches;
   result.time = processMillis() - startTime;
 
-  res.send(result);
+  if (plainText) {
+    res.set('Content-Type', mime.getType('.txt'));
+    res.send(result.toPlainText());
+  }
+  else if (callback)
+    res.jsonp(result);
+  else
+    res.send(result);
 }));
 
 function copyAndMergeLocations(destination: LocationArrayMap, source: LocationMap): void {

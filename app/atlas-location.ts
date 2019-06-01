@@ -1,34 +1,9 @@
 import { KsTimeZone } from 'ks-date-time-zone';
 import { eqci } from './common';
+import { adjustUSCountyName } from './gazetteer';
 
 function addParenthetical(s: string): string {
   return ` (${s})`;
-}
-
-const CENSUS_AREAS = new RegExp(
-  '(Aleutians West|Bethel|Dillingham|Nome|Prince of Wales-Outer Ketchikan|' +
-  'Skagway-Hoonah-Angoon|Southeast Fairbanks|Valdez-Cordova|Wade Hampton|' +
-  'Wrangell-Petersburg|Yukon-Koyukuk)', 'i');
-
-function adjustUSCountyName(county: string, state: string): string {
-  if (/ (Division|Census Area|Borough|Parish|County)$/i.test(county))
-    return county;
-
-  if (state === 'AK') {
-    if (/Anchorage|Juneau/i.test(county)) {
-      county += ' Division';
-    }
-    else if (CENSUS_AREAS.test(county))
-     county += ' Census Area';
-    else
-      county += ' Borough';
-  }
-  else if (state === 'LA')
-    county += ' Parish';
-  else
-    county += ' County';
-
-  return county;
 }
 
 export class AtlasLocation {
@@ -156,7 +131,12 @@ export class AtlasLocation {
   }
 
   toString(): string {
-    return `${this.displayName}: ${this.latitude}, ${this.longitude}; ${this.zip}; ${this.zone}; ${this.placeType}; ${this.source}; ${this.rank}`;
+    return `${this.displayName} - lat: ${this.latitude}, long: ${this.longitude};` +
+      (this.zip ? ` zip: ${this.zip};` : '') +
+      ` zone: ${this.zone}; placeType: ${this.placeType}; source: ${this.source}; rank: ${this.rank}` +
+      (this.flagCode ? ` flagCode: ${this.flagCode};` : '') +
+      (this.matchedByAlternateName ? ' matchedByAlternateName;' : '') +
+      (this.matchedBySound ? ' matchedBySound;' : '');
   }
 
   toJSON(): any {

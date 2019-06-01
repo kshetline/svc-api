@@ -43,4 +43,43 @@ export class SearchResult {
 
     return copy;
   }
+
+  toPlainText(): string {
+    const text: string[] = [];
+    const sorted = (this.matches ? this.matches.sort((a, b) => {
+        if (a.rank < b.rank) // Descending rank order as primary sort
+          return 1;
+        else if (a.rank > b.rank)
+          return -1;
+        else if (a.displayName < b.displayName) // ...but ascending name order as secondary sort
+          return -1;
+        else if (a.displayName > b.displayName)
+          return 1;
+        else
+          return 0;
+      }) : this.matches);
+
+    text.push(`originalSearch: ${this.originalSearch}`);
+    text.push(`normalizedSearch: ${this.normalizedSearch}`);
+    text.push(`time: ${(this.time / 1000).toFixed(3)} seconds`);
+
+    if (this.error)
+      text.push(`error: ${this.error}`);
+    else {
+      if (this.warning)
+        text.push(`warning: ${this.warning.replace('\n', '\u23CE\n')}`);
+
+      if (this.info)
+        text.push(`warning: ${this.info.replace('\n', '\u23CE\n')}`);
+
+      text.push(`count: ${this.count}` + (this.limitReached ? ' (limit reached)' : ''));
+
+      if (sorted)
+        sorted.forEach(match => text.push(match.toString()));
+    }
+
+    text.push('');
+
+    return text.join('\n');
+  }
 }

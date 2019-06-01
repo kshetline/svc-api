@@ -651,3 +651,30 @@ export function parseSearchString(q: string, mode: ParseMode): ParsedSearchStrin
 
   return parsed;
 }
+
+const CENSUS_AREAS = new RegExp(
+  '(Aleutians West|Bethel|Dillingham|Nome|Prince of Wales-Outer Ketchikan|' +
+  'Skagway-Hoonah-Angoon|Southeast Fairbanks|Valdez-Cordova|Wade Hampton|' +
+  'Wrangell-Petersburg|Yukon-Koyukuk)', 'i');
+
+export function adjustUSCountyName(county: string, state: string): string {
+  if (/ (Division|Census Area|Borough|Parish|County)$/i.test(county))
+    return county;
+
+  if (state === 'AK') {
+    if (/Anchorage|Juneau/i.test(county)) {
+      county += ' Division';
+    }
+    else if (CENSUS_AREAS.test(county))
+     county += ' Census Area';
+    else
+      county += ' Borough';
+  }
+  else if (state === 'LA')
+    county += ' Parish';
+  else
+    county += ' County';
+
+  return county;
+}
+
