@@ -18,7 +18,7 @@ app.use(morgan('tiny'));
 app.use('/atlas/', atlasRouter);
 app.use('/ip/', ipToLocationRouter);
 app.use(express.static('../public'));
-app.use('/assets/resources/flags/', serveIndex(pathJoin(__dirname, '../public/assets/resources/flags/')));
+app.use('/assets/resources/flags/', serveIndex(pathJoin(__dirname, '../../public/assets/resources/flags/')));
 app.get('/', (req: Request, res: Response) => {
   res.send('Static home file not found');
 });

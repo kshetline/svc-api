@@ -233,7 +233,7 @@ const flagCodes = new Set<string>();
 
 async function initFlagCodes() {
   try {
-    const flagFiles = readdirSync(pathJoin(__dirname, '../public/assets/resources/flags'));
+    const flagFiles = readdirSync(pathJoin(__dirname, '../../public/assets/resources/flags'));
 
     flagFiles.forEach(file => {
       if (/^(\w+)\.png$/.test(file))
