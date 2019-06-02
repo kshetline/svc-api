@@ -51,12 +51,8 @@ export class SearchResult {
           return 1;
         else if (a.rank > b.rank)
           return -1;
-        else if (a.displayName < b.displayName) // ...but ascending name order as secondary sort
-          return -1;
-        else if (a.displayName > b.displayName)
-          return 1;
-        else
-          return 0;
+        else // ...but ascending name order as secondary sort
+          return a.displayName.localeCompare(b.displayName, 'en');
       }) : this.matches);
 
     text.push(`originalSearch: ${this.originalSearch}`);

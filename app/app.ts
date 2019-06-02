@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import { join as pathJoin } from 'path';
 
 import { router as atlasRouter, initAtlas } from './atlas';
+import { router as stateRouter } from './states';
 import { router as ipToLocationRouter } from './ip-to-location';
 import { initTimeZoneLargeAlt } from 'ks-date-time-zone/dist/ks-timezone-large-alt';
 
@@ -17,6 +18,8 @@ app.use(morgan('tiny'));
 
 app.use('/atlas/', atlasRouter);
 app.use('/atlasdb/atlas/', atlasRouter); // Old Tomcat path
+app.use('/states/', stateRouter);
+app.use('/atlasdb/states/', stateRouter); // Old Tomcat path
 app.use('/ip/', ipToLocationRouter);
 app.use(express.static('../public'));
 app.use('/assets/resources/flags/', serveIndex(pathJoin(__dirname, '../../public/assets/resources/flags/')));

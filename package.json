@@ -1,6 +1,6 @@
 {
   "name": "svc-api",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "SVC API",
   "main": "index.js",
   "scripts": {
@@ -10,6 +10,10 @@
   },
   "author": "Kerry Shetline <kerry@shetline.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kshetline/svc-api.git"
+  },
   "dependencies": {
     "express": "^4.16.4",
     "follow-redirects": "^1.7.0",

@@ -15,6 +15,11 @@ export interface ParsedSearchString {
   normalizedSearch: string;
 }
 
+export interface NameAndCode {
+  name: string;
+  code: string;
+}
+
 export type ParseMode = 'loose' | 'strict';
 
 const US_ZIP_PATTERN = /(\d{5})(-\d{4,6})?/;
@@ -124,18 +129,18 @@ const states = [
   'Newfoundland and Labrador', 'NF',
   'Northwest Territories', 'NT',
   'Nova Scotia', 'NS',
-  'Nunavut', 'NU',
   'Territory of Nunavut', 'NU',
+  'Nunavut', 'NU', // Preferred form listed last
   'Ontario', 'ON',
-  'Prince Edward Island', 'PE',
   'Prince Edward Isle', 'PE',
+  'Prince Edward Island', 'PE', // Preferred form listed last
   'Quebec', 'QC',
   'Saskatchewan', 'SK',
   'Yukon Territory', 'YT',
   'Yukon', 'YT'
 ];
 
-// const usStates = 'AL AK AS AZ AR CA CO CT DE DC FM FL GA GU HI ID IL IN IA KS KY LA ME MH MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND MP OH OK OR PW PA PR RI SC SD TN TX UT VT VI VA WA WV WI WY';
+const usStateCodes = 'AL AK AS AZ AR CA CO CT DE DC FM FL GA GU HI ID IL IN IA KS KY LA ME MH MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND MP OH OK OR PW PA PR RI SC SD TN TX UT VT VI VA WA WV WI WY';
 export const usTerritories = 'AS  FM  GU   MH  MP PW   VI';
 // const usTerritoryCountryCodes = 'ASM FSM GUM MHL MNP PLW VIR';
 
@@ -696,3 +701,34 @@ export function adjustUSCountyName(county: string, state: string): string {
   return county;
 }
 
+export function getStatesProvincesAndCountries(): NameAndCode[] {
+  const usStates: NameAndCode[] = [];
+  const canadianProvinces: NameAndCode[] = [];
+  const countries: NameAndCode[] = [];
+  const results: NameAndCode[] = [];
+
+  Object.keys(longStates).forEach(code => {
+    if (usStateCodes.indexOf(code) >= 0) {
+      if (usTerritories.indexOf(code) < 0)
+        usStates.push({name: longStates[code], code});
+    }
+    else if (code.length === 2)
+      canadianProvinces.push({name: code === 'NF' ? 'Newfoundland' : longStates[code], code});
+  });
+
+  usStates.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+  results.push(...usStates);
+
+  canadianProvinces.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+  results.push(null, ...canadianProvinces);
+
+  Object.keys(code3ToName).forEach(code => {
+    if (!/^(NML|XX.|(.*[^A-Z].*))$/.test(code))
+      countries.push({name: code3ToName[code], code});
+  });
+
+  countries.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+  results.push(null, ...countries);
+
+  return results;
+}
