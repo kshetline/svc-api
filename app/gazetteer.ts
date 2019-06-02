@@ -1,6 +1,4 @@
-import { createReadStream, statSync } from 'fs';
-import stream from 'stream';
-import { promisify } from 'util';
+import { createReadStream, ReadStream, statSync } from 'fs';
 import { eqci, getWebPage, makePlainASCII_UC } from './common';
 import { AtlasLocation } from './atlas-location';
 import { Html5Entities } from 'html-entities';
@@ -36,7 +34,12 @@ interface ProcessedNames {
 export class LocationMap extends MapClass<string, AtlasLocation> {}
 
 const entities = new Html5Entities();
-const finished = promisify(stream.finished);
+
+function finished(input: ReadStream): Promise<void> {
+  return new Promise<void>(resolve => {
+    input.on('end', () => resolve());
+  });
+}
 
 export const longStates: Record<string, string> = {};
 export const stateAbbreviations: Record<string, string> = {};

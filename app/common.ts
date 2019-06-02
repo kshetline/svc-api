@@ -11,7 +11,13 @@ export function notFound(res: Response): void {
 }
 
 export function processMillis(): number {
-  return Number(process.hrtime.bigint()) / 1000000;
+  if ((process.hrtime as any).bigint)
+    return Number((process.hrtime as any).bigint()) / 1000000;
+  else {
+    const time = process.hrtime();
+
+    return time[0] * 1000 + time[1] / 1000000;
+  }
 }
 
 export function propertyCount(x: any): number {
