@@ -240,7 +240,8 @@ async function initFlagCodes() {
         flagCodes.add(file);
     });
 
-    return;
+    if (flagCodes.size)
+      return;
   }
   catch (err) { /* Ignore error, proceed to remote retrieval. */}
 

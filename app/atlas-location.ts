@@ -144,6 +144,8 @@ export class AtlasLocation {
 
     Object.assign(copy, this);
     copy.displayName = this.displayName;
+    copy.zoneOffset = this.getZoneOffset();
+    copy.zoneDst = this.getZoneDst();
     delete copy.geonameID;
     delete copy.useAsUpdate;
 
