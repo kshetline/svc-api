@@ -4,6 +4,11 @@ import http, { RequestOptions } from 'http';
 import { https } from 'follow-redirects';
 import { parse as parseUrl } from 'url';
 
+export const MIN_EXTERNAL_SOURCE = 100;
+export const SOURCE_GEONAMES_POSTAL_UPDATE  = 101;
+export const SOURCE_GEONAMES_GENERAL_UPDATE = 103;
+export const SOURCE_GETTY_UPDATE = 104;
+
 export function notFound(res: Response): void {
   res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'});
   res.write('Not found');

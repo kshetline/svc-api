@@ -11,21 +11,21 @@ import { svcApiConsole, svcApiLogStream, svcApiSkipFilter } from './svc-api-logg
 
 initTimeZoneLargeAlt();
 
-const port = process.env.PORT;
-
 const app: Application = express();
+const port = process.env.PORT || 80;
 
-app.use(morgan('REQ: :method :url :status :res[content-length] - :response-time ms', {
+app.use(morgan('REQ: :remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :response-time ms - :res[content-length]', {
   skip: svcApiSkipFilter,
   stream: svcApiLogStream
 }));
 
 app.use('/atlas/', atlasRouter);
-app.use('/atlasdb/atlas/', atlasRouter); // Old Tomcat path
+app.use('/atlasdb/atlas/', atlasRouter); // Legacy Tomcat path
 app.use('/states/', stateRouter);
-app.use('/atlasdb/states/', stateRouter); // Old Tomcat path
+app.use('/atlasdb/states/', stateRouter); // Legacy Tomcat path
 app.use('/ip/', ipToLocationRouter);
 app.use(express.static('../public'));
+// Make the flags folder browsable.
 app.use('/assets/resources/flags/', serveIndex(pathJoin(__dirname, '../../public/assets/resources/flags/')));
 app.get('/', (req: Request, res: Response) => {
   res.send('Static home file not found');

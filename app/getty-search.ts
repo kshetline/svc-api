@@ -1,5 +1,6 @@
-import { closeMatchForCity, closeMatchForState, containsMatchingLocation, fixRearrangedName, getCode3ForCountry, getFlagCode, LocationMap, makeLocationKey, processPlaceNames } from './gazetteer';
-import { getWebPage, processMillis, timedPromise, toInt, toNumber } from './common';
+import { closeMatchForCity, closeMatchForState, containsMatchingLocation, fixRearrangedName, getCode3ForCountry,
+  getFlagCode, LocationMap, makeLocationKey, processPlaceNames } from './gazetteer';
+import { getWebPage, processMillis, SOURCE_GETTY_UPDATE, timedPromise, toInt, toNumber } from './common';
 import { AtlasLocation } from './atlas-location';
 import { getTimeZone } from './timezones';
 
@@ -13,10 +14,8 @@ export interface GettyMetrics {
   failedSyntax: string;
 }
 
-const MAX_TIME_GETTY                 = 110; // seconds
+const MAX_TIME_GETTY = 110; // seconds
 const PREFERRED_RETRIEVAL_TIME_GETTY =  40; // seconds
-const SOURCE_GETTY_UPDATE            = 104;
-
 const FAKE_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:66.0) Gecko/20100101 Firefox/66.0';
 
 export async function gettySearch(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationMap> {

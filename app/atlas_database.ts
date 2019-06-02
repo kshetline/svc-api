@@ -2,7 +2,7 @@ import { Pool, PoolConnection } from './mysql-await-async';
 import { closeMatchForState, code3ToName, countyStateCleanUp, getFlagCode, LocationMap, makeLocationKey,
   ParsedSearchString, simplify } from './gazetteer';
 import { AtlasLocation } from './atlas-location';
-import { toBoolean } from './common';
+import { MIN_EXTERNAL_SOURCE, toBoolean } from './common';
 import { svcApiConsole } from './svc-api-logger';
 
 export const pool = new Pool({
@@ -17,7 +17,6 @@ enum MatchType {EXACT_MATCH = 0, EXACT_MATCH_ALT, STARTS_WITH, SOUNDS_LIKE}
 const NO_RESULTS_YET = -1;
 const MAX_MONTHS_BEFORE_REDOING_EXTENDED_SEARCH = 12;
 const ZIP_RANK = 9;
-const MIN_EXTERNAL_SOURCE = 100;
 
 pool.on('connection', connection => {
   connection.query("SET NAMES 'utf8'");

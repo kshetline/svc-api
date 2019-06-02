@@ -1,7 +1,7 @@
 import { Request, Response, Router } from 'express';
 import mime from 'mime';
 
-import { asyncHandler, notFoundForEverythingElse, processMillis, toBoolean, toInt } from './common';
+import { asyncHandler, MIN_EXTERNAL_SOURCE, notFoundForEverythingElse, processMillis, toBoolean, toInt } from './common';
 import { doDataBaseSearch, hasSearchBeenDoneRecently, pool } from './atlas_database';
 import { initGazetteer, LocationMap, ParsedSearchString, parseSearchString, roughDistanceBetweenLocationsInKm } from './gazetteer';
 import { SearchResult } from './search-result';
@@ -31,20 +31,27 @@ interface RemoteSearchResults {
 
 const DEFAULT_MATCH_LIMIT = 75;
 const MAX_MATCH_LIMIT = 500;
-const MIN_EXTERNAL_SOURCE = 100;
+const REFRESH_TIME_FOR_INIT_DATA = 86400; // seconds
 
-export async function initAtlas() {
+let lastInit = 0;
+
+export async function initAtlas(re_init = false) {
   try {
     await initTimezones();
     await initGazetteer();
+    lastInit = processMillis();
   }
   catch (err) {
-    svcApiConsole.error('atlas init error: ' + err);
-    throw (err);
+    svcApiConsole.error(`Atlas ${re_init ? 're-' : ''}init error: ${err}`);
+
+    if (!re_init)
+      throw (err);
   }
 }
 
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
+  const startTime = processMillis();
+
   const q = req.query.q ? req.query.q.trim() : 'Nashua, NH';
   const version = toInt(req.query.version, 9);
   const callback = req.query.callback;
@@ -53,17 +60,15 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const withoutDB = /only|geonames|getty/i.test(remoteMode);
   const extend = (remoteMode === 'extend' || remoteMode === 'only' || remoteMode === 'forced');
   const limit = Math.min(toInt(req.query.limit, DEFAULT_MATCH_LIMIT), MAX_MATCH_LIMIT);
-  let dbError: string;
-  let gotBetterMatchesFromRemoteData = false;
 
   const parsed = parseSearchString(q, version < 3 ? 'loose' : 'strict');
-  const startTime = processMillis();
-
   const result = new SearchResult(q, parsed.normalizedSearch);
   let consultRemoteData = false;
   let remoteSearchResults;
   let dbMatchedOnlyBySound = false;
   let dbMatches: LocationMap;
+  let dbError: string;
+  let gotBetterMatchesFromRemoteData = false;
 
   for (let attempt = 0; attempt < 2; ++attempt) {
     const connection = await pool.getConnection();
@@ -74,11 +79,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
       consultRemoteData = true;
     }
 
-    // if (startTime / 1000 > lastInit + REFRESH_TIME_FOR_INIT_DATA) {
-    //   initTimeZones(connection);
-    //   initFlagCodes();
-    //   lastInit = Util.elapsedTimeSeconds();
-    // }
+    if (startTime / 1000 > lastInit + REFRESH_TIME_FOR_INIT_DATA)
+      await initAtlas(true);
 
     if (withoutDB)
       dbMatches = undefined;
@@ -384,7 +386,7 @@ async function remoteSourcesSearch(parsed: ParsedSearchString, doGeonames: boole
   }
 
   if (doGetty && !parsed.doZip) {
-    gettyIndex = nextIndex++;
+    gettyIndex = nextIndex /* ++ */; // TODO: Put back trailing ++ if another remote source is added.
     promises.push(gettySearch(parsed.targetCity, parsed.targetState, results.gettyMetrics, notrace));
   }
 

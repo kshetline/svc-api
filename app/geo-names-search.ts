@@ -1,6 +1,7 @@
 import { closeMatchForCity, closeMatchForState, code2ToCode3, containsMatchingLocation, getFlagCode, LocationMap,
   makeLocationKey, processPlaceNames, standardizeShortCountyName } from './gazetteer';
-import { getWebPage, processMillis, timedPromise, toInt } from './common';
+import { getWebPage, processMillis, SOURCE_GEONAMES_GENERAL_UPDATE, SOURCE_GEONAMES_POSTAL_UPDATE,
+  timedPromise, toInt } from './common';
 import { AtlasLocation } from './atlas-location';
 
 export interface GeoNamesMetrics {
@@ -9,10 +10,7 @@ export interface GeoNamesMetrics {
  matchedCount: number;
 }
 
-const SOURCE_GEONAMES_POSTAL_UPDATE  = 101;
-const SOURCE_GEONAMES_GENERAL_UPDATE = 103;
-const MAX_TIME_GEONAMES =  20; // seconds
-
+const MAX_TIME_GEONAMES = 20; // seconds
 const FAKE_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:66.0) Gecko/20100101 Firefox/66.0';
 
 export async function geoNamesSearch(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationMap> {
