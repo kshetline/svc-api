@@ -234,10 +234,11 @@ const flagCodes = new Set<string>();
 async function initFlagCodes() {
   try {
     const flagFiles = readdirSync(pathJoin(__dirname, '../../public/assets/resources/flags'));
+    let $: string[];
 
     flagFiles.forEach(file => {
-      if (/^(\w+)\.png$/.test(file))
-        flagCodes.add(file);
+      if (($ = /^(\w+)\.png$/.exec(file)))
+        flagCodes.add($[1]);
     });
 
     if (flagCodes.size)

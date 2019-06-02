@@ -33,14 +33,14 @@ export class AtlasLocation {
     const zoneName = /(.*?)(\?)?$/.exec(this.zone)[1];
     const zone = KsTimeZone.getTimeZone(zoneName);
 
-    return zone.utcOffset;
+    return Math.round(zone.utcOffset / 60);
   }
 
   getZoneDst(): number {
     const zoneName = /(.*?)(\?)?$/.exec(this.zone)[1];
     const zone = KsTimeZone.getTimeZone(zoneName);
 
-    return zone.dstOffset;
+    return Math.round(zone.dstOffset / 60);
   }
 
   get displayName(): string {
