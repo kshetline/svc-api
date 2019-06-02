@@ -141,7 +141,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     result.limitReached = true;
   }
 
-  svcApiConsole.info(dbError, gotBetterMatchesFromRemoteData);
+  console.log(dbError, gotBetterMatchesFromRemoteData); // TODO: Remove
 
   result.matches = uniqueMatches;
   result.time = processMillis() - startTime;

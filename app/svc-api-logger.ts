@@ -42,14 +42,14 @@ if (process.env.SVC_API_LOG) {
 
 // Only log requests that are for SVC API calls, not for static files pulled from the "public" folder.
 export function svcApiSkipFilter(req: Request, res: Response): boolean {
-  return !/^\/?(atlas|atlasdb|ip|states)(\/|$)/.test(req.baseUrl);
+  return !/^\/?(atlas|atlasdb|ip|states)(\/|\?|$)/.test(req.baseUrl);
 }
 
 function argsToString(...args: any[]): string {
   const sb: string[] = [];
 
   if (args.length > 0)
-    sb.push(':');
+    sb.push(': ');
 
   args.forEach(arg => {
     let s: string;
