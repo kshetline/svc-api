@@ -7,6 +7,7 @@ import { router as atlasRouter, initAtlas } from './atlas';
 import { router as stateRouter } from './states';
 import { router as ipToLocationRouter } from './ip-to-location';
 import { initTimeZoneLargeAlt } from 'ks-date-time-zone/dist/ks-timezone-large-alt';
+import { svcApiConsole, svcApiLogStream, svcApiSkipFilter } from './svc-api-logger';
 
 initTimeZoneLargeAlt();
 
@@ -14,7 +15,10 @@ const port = process.env.PORT;
 
 const app: Application = express();
 
-app.use(morgan('tiny'));
+app.use(morgan('REQ: :method :url :status :res[content-length] - :response-time ms', {
+  skip: svcApiSkipFilter,
+  stream: svcApiLogStream
+}));
 
 app.use('/atlas/', atlasRouter);
 app.use('/atlasdb/atlas/', atlasRouter); // Old Tomcat path
@@ -32,11 +36,11 @@ app.get('/', (req: Request, res: Response) => {
     await initAtlas();
 
     app.listen(port, () => {
-      console.log(`Sky View Café listening on port ${port}.`);
+      svcApiConsole.log(`Sky View Café listening on port ${port}.`);
     });
   }
   catch (err) {
-    console.error('svc-api failed to start');
+    svcApiConsole.error('Sky View Café failed to start');
     process.exit(1);
   }
 })();

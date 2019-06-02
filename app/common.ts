@@ -20,10 +20,6 @@ export function processMillis(): number {
   }
 }
 
-export function propertyCount(x: any): number {
-  return (typeof x === 'object' ? Object.keys(x).length : 0);
-}
-
 export function notFoundForEverythingElse(router: Router) {
   router.get('*', (req: Request, res: Response) => notFound(res));
 }

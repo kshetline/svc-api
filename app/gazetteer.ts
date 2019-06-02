@@ -6,6 +6,7 @@ import { MapClass } from './map-class';
 import { logWarning } from './atlas_database';
 import { cos, cos_deg, PI, sin_deg } from 'ks-math';
 import { join as pathJoin } from 'path';
+import { svcApiConsole } from './svc-api-logger';
 
 export interface ParsedSearchString {
   targetCity: string;
@@ -158,7 +159,7 @@ export async function initGazetteer() {
     let length = statSync(path).size;
     let input = createReadStream(path, {encoding: 'utf8', highWaterMark: length});
 
-    input.on('error', err => console.log('gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
+    input.on('error', err => svcApiConsole.error('Gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
     input.on('data', (data: Buffer) => {
       const lines = data.toString('utf8').split(/\r\n|\n|\r/);
 
@@ -203,7 +204,7 @@ export async function initGazetteer() {
     length = statSync(path).size;
     input = createReadStream(path, {encoding: 'utf8', highWaterMark: length});
 
-    input.on('error', err => console.log('gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
+    input.on('error', err => svcApiConsole.error('Gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
     input.on('data', (data: Buffer) => {
       const lines = data.toString('utf8').split(/\r\n|\n|\r/);
 
@@ -219,7 +220,7 @@ export async function initGazetteer() {
     length = statSync(path).size;
     input = createReadStream(path, {encoding: 'utf8', highWaterMark: length});
 
-    input.on('error', err => console.log('gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
+    input.on('error', err => svcApiConsole.error('Gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
     input.on('data', (data: Buffer) => {
       const lines = data.toString('utf8').split(/\r\n|\n|\r/);
 
@@ -230,7 +231,7 @@ export async function initGazetteer() {
     input.close();
   }
   catch (err) {
-    console.error('gazetteer init error: ' + err);
+    svcApiConsole.error('Gazetteer init error: ' + err);
   }
 }
 
@@ -246,8 +247,10 @@ async function initFlagCodes() {
         flagCodes.add($[1]);
     });
 
-    if (flagCodes.size)
+    if (flagCodes.size) {
+      svcApiConsole.info('Flag codes obtained from local directory');
       return;
+    }
   }
   catch (err) { /* Ignore error, proceed to remote retrieval. */}
 
@@ -260,6 +263,8 @@ async function initFlagCodes() {
       if ($)
         flagCodes.add($[1]);
     });
+
+    svcApiConsole.info('Flag codes obtained from remote directory');
   }
   catch (err) {
     throw new Error('initFlagCodes error: ' + err);

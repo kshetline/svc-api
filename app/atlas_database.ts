@@ -1,9 +1,12 @@
 import { Pool, PoolConnection } from './mysql-await-async';
-import { closeMatchForState, code3ToName, countyStateCleanUp, getFlagCode, LocationMap, makeLocationKey, ParsedSearchString, simplify } from './gazetteer';
+import { closeMatchForState, code3ToName, countyStateCleanUp, getFlagCode, LocationMap, makeLocationKey,
+  ParsedSearchString, simplify } from './gazetteer';
 import { AtlasLocation } from './atlas-location';
+import { toBoolean } from './common';
+import { svcApiConsole } from './svc-api-logger';
 
 export const pool = new Pool({
-  host: (process.env.DB_REMOTE ? 'skyviewcafe.com' : '127.0.0.1'),
+  host: (toBoolean(process.env.DB_REMOTE) ? 'skyviewcafe.com' : '127.0.0.1'),
   user: 'skyview',
   password: process.env.DB_PWD,
   database: 'skyviewcafe'
@@ -21,7 +24,7 @@ pool.on('connection', connection => {
 });
 
 export function logWarning(message: string, notrace = true): void {
-  console.warn(message, notrace);
+  svcApiConsole.warn(message, notrace);
 }
 
 export async function hasSearchBeenDoneRecently(connection: PoolConnection, searchStr: string, extended: boolean): Promise<boolean> {

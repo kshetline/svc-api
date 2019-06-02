@@ -10,6 +10,7 @@ import { MapClass } from './map-class';
 import { GettyMetrics, gettySearch } from './getty-search';
 import { initTimezones } from './timezones';
 import { GeoNamesMetrics, geoNamesSearch } from './geo-names-search';
+import { svcApiConsole } from './svc-api-logger';
 
 export const router = Router();
 
@@ -38,7 +39,7 @@ export async function initAtlas() {
     await initGazetteer();
   }
   catch (err) {
-    console.error('atlas init error: ' + err);
+    svcApiConsole.error('atlas init error: ' + err);
     throw (err);
   }
 }
@@ -140,7 +141,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     result.limitReached = true;
   }
 
-  console.log(dbError, gotBetterMatchesFromRemoteData);
+  svcApiConsole.info(dbError, gotBetterMatchesFromRemoteData);
 
   result.matches = uniqueMatches;
   result.time = processMillis() - startTime;
@@ -281,7 +282,7 @@ function eliminateDuplicates(mergedMatches: LocationArrayMap, limit: number): At
         }
         else if (state1 !== state2) {
           if (distance < 10 && state1 && state2)
-            console.warn(`Possible detail conflict for same location: ${city1}, ${state1}/${state2}, ${country1}`);
+            svcApiConsole.warn(`Possible detail conflict for same location: ${city1}, ${state1}/${state2}, ${country1}`);
 
           if (rank2 > rank1) {
             locations[i] = undefined;
@@ -301,7 +302,7 @@ function eliminateDuplicates(mergedMatches: LocationArrayMap, limit: number): At
         }
         else if (county1 !== county2) {
           if (distance < 10 && county1 && county2)
-            console.warn(`Possible detail conflict for same location: ${city1}, ${county1}/${county2}, ${state1}, ${country1}`);
+            svcApiConsole.warn(`Possible detail conflict for same location: ${city1}, ${county1}/${county2}, ${state1}, ${country1}`);
 
           if (rank2 > rank1) {
             locations[i] = undefined;
