@@ -1,10 +1,11 @@
-import { createReadStream, ReadStream, statSync } from 'fs';
+import { createReadStream, readdirSync, ReadStream, statSync } from 'fs';
 import { eqci, getWebPage, makePlainASCII_UC } from './common';
 import { AtlasLocation } from './atlas-location';
 import { Html5Entities } from 'html-entities';
 import { MapClass } from './map-class';
 import { logWarning } from './atlas_database';
 import { cos, cos_deg, PI, sin_deg } from 'ks-math';
+import { join as pathJoin } from 'path';
 
 export interface ParsedSearchString {
   targetCity: string;
@@ -231,6 +232,18 @@ export async function initGazetteer() {
 const flagCodes = new Set<string>();
 
 async function initFlagCodes() {
+  try {
+    const flagFiles = readdirSync(pathJoin(__dirname, '../public/assets/resources/flags'));
+
+    flagFiles.forEach(file => {
+      if (/^(\w+)\.png$/.test(file))
+        flagCodes.add(file);
+    });
+
+    return;
+  }
+  catch (err) { /* Ignore error, proceed to remote retrieval. */}
+
   try {
     const lines = (await getWebPage('https://skyviewcafe.com/assets/resources/flags/')).split(/\r\n|\n|\r/);
 
