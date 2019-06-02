@@ -16,6 +16,7 @@ const app: Application = express();
 app.use(morgan('tiny'));
 
 app.use('/atlas/', atlasRouter);
+app.use('/atlasdb/atlas/', atlasRouter); // Old Tomcat path
 app.use('/ip/', ipToLocationRouter);
 app.use(express.static('../public'));
 app.use('/assets/resources/flags/', serveIndex(pathJoin(__dirname, '../../public/assets/resources/flags/')));
