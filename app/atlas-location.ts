@@ -6,6 +6,17 @@ function addParenthetical(s: string): string {
   return ` (${s})`;
 }
 
+function compare(a: string, b: string): number {
+  if (!a && !b)
+    return 0;
+  else if (!a)
+    return -1;
+  else if (!b)
+    return 1;
+  else
+    return a.localeCompare(b, 'en');
+}
+
 export class AtlasLocation {
   city: string;
   variant: string;
@@ -150,5 +161,24 @@ export class AtlasLocation {
     delete copy.useAsUpdate;
 
     return copy;
+  }
+
+  compareTo(other: AtlasLocation): number {
+    let comparison = (other.rank || 0) - (this.rank || 0);
+
+    if (comparison)
+      return comparison;
+
+    comparison = compare(this.city, other.city);
+
+    if (comparison)
+      return comparison;
+
+    comparison = compare(this.country, other.country);
+
+    if (comparison)
+      return comparison;
+
+    return compare(this.state, other.state);
   }
 }

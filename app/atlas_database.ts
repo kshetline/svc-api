@@ -1,8 +1,10 @@
 import { Pool, PoolConnection } from './mysql-await-async';
-import { closeMatchForState, code3ToName, countyStateCleanUp, getFlagCode, LocationMap, makeLocationKey,
-  ParsedSearchString, simplify } from './gazetteer';
+import {
+  closeMatchForState, code3ToName, countyStateCleanUp, getFlagCode, LocationMap, makeLocationKey,
+  ParsedSearchString, roughDistanceBetweenLocationsInKm, simplify
+} from './gazetteer';
 import { AtlasLocation } from './atlas-location';
-import { MIN_EXTERNAL_SOURCE, toBoolean } from './common';
+import { makePlainASCII, MIN_EXTERNAL_SOURCE, toBoolean } from './common';
 import { svcApiConsole } from './svc-api-logger';
 
 export const pool = new Pool({
@@ -22,6 +24,10 @@ pool.on('connection', connection => {
   connection.query("SET NAMES 'utf8'");
 });
 
+export function logMessage(message: string, notrace = true): void {
+  svcApiConsole.info(message, notrace);
+}
+
 export function logWarning(message: string, notrace = true): void {
   svcApiConsole.warn(message, notrace);
 }
@@ -30,7 +36,7 @@ export async function hasSearchBeenDoneRecently(connection: PoolConnection, sear
   return await logSearchResults(connection, searchStr, extended, NO_RESULTS_YET, false);
 }
 
-async function logSearchResults(connection: PoolConnection, searchStr: string, extended: boolean, matchCount: number, dbUpdate: boolean): Promise<boolean> {
+export async function logSearchResults(connection: PoolConnection, searchStr: string, extended: boolean, matchCount: number, dbUpdate: boolean): Promise<boolean> {
   let dbHits = 0;
   let ageMonths = -1;
   let found = false;
@@ -234,4 +240,143 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
   }
 
   return matches;
+}
+
+export async function updateAtlasDB(connection: PoolConnection, matchList: AtlasLocation[], dbUpdate: boolean): Promise<void> {
+  for (const location of matchList) {
+    const asUpdate = location.useAsUpdate;
+
+    // Is this match something that didn't come from a remote update?
+    if (location.source < MIN_EXTERNAL_SOURCE && !asUpdate)
+      continue;
+
+    const city = location.city;
+    const keyName = simplify(city);
+    const variant = (location.variant ? simplify(location.variant) : '');
+    const country = location.country;
+    const state = location.state;
+    const county = location.county;
+    const geoNamesDuplicates: number[] = [];
+    let query: string;
+    const values: any[] = [];
+
+    if (asUpdate) {
+      query = 'SELECT * FROM atlas2 WHERE geonames_id = ?';
+      values[0] = location.geonameID;
+    }
+    else {
+      query = 'SELECT * FROM atlas2 WHERE key_name = ?';
+      values[0] = keyName;
+    }
+
+    const results = await connection.queryResults(query, values);
+    let found = false;
+    let dbItemNo = -1;
+    let dbCounty = null;
+    let dbState = null;
+
+    (results ? results : []).every((result: any) => {
+      dbItemNo = result.item_no;
+      dbCounty = result.admin2;
+      dbState  = result.admin1;
+
+      if (asUpdate) {
+        if (found)
+          geoNamesDuplicates.push(dbItemNo);
+        else
+          found = true;
+
+        return true;
+      }
+
+      const dbCountry   = result.country;
+      const dbLatitude  = result.latitude;
+      const dbLongitude = result.longitude;
+      const distance = roughDistanceBetweenLocationsInKm(location.latitude, location.longitude, dbLatitude, dbLongitude);
+
+      if (country === dbCountry && distance < 10 &&
+         (country !== 'USA' && country !== 'CAN' || state === dbState)) {
+        found = true;
+        return false;
+      }
+
+      return true;
+    });
+
+    // TODO: Check for apostrophes and Mc/Mac.
+
+    if (!dbUpdate) {
+      if (asUpdate)
+        svcApiConsole.log('Updated: ' + location);
+      else if (!found)
+        svcApiConsole.log('New data: ' + location);
+
+      continue;
+    }
+
+    if (asUpdate && found) {
+      query = 'UPDATE atlas2 SET key_name = ?, variant = ?, name = ?, admin2 = ?, admin1 = ?, country = ?, ' +
+          'latitude = ?, longitude = ?, elevation = ?, time_zone = ?, postal_code = ?, rank = ?, feature_type = ?, ' +
+          'sound = SOUNDEX(?), source = ? WHERE item_no = ?';
+
+      values.length = 0;
+      values.push(keyName);
+      values.push(variant);
+      values.push(city);
+      values.push(county);
+      values.push(state);
+      values.push(country);
+      values.push(location.latitude);
+      values.push(location.longitude);
+      values.push(location.elevation);
+      values.push(location.zone);
+      values.push(location.zip);
+      values.push(location.rank);
+      values.push(location.placeType);
+      values.push(makePlainASCII(city));
+      values.push(location.source);
+      values.push(dbItemNo);
+
+      await connection.queryResults(query, values);
+
+      for (const itemNo of geoNamesDuplicates) {
+        await connection.queryResults('DELETE FROM atlas2 WHERE item_no = ?', [itemNo]);
+      }
+    }
+    else if (!found) {
+      query = 'INSERT INTO atlas2 (key_name, variant, name, admin2, admin1, country, ' +
+               'latitude, longitude, elevation, time_zone, postal_code, rank, feature_type, sound, source) VALUES (' +
+               '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SOUNDEX(?), ?)';
+      values.length = 0;
+      values.push(keyName);
+      values.push(variant);
+      values.push(city);
+      values.push(county);
+      values.push(state);
+      values.push(country);
+      values.push(location.latitude);
+      values.push(location.longitude);
+      values.push(location.elevation);
+      values.push(location.zone);
+      values.push(location.zip);
+      values.push(location.rank);
+      values.push(location.placeType);
+      values.push(makePlainASCII(city));
+      values.push(location.source);
+
+      await connection.queryResults(query, values);
+      await logMessage(`Added new entry for ${city}, ${state}, ${country}, ${location.source}`);
+    }
+    else {
+      if (dbCounty !== county) {
+        await connection.queryResults('UPDATE atlas2 SET admin2 = ? WHERE item_no = ?', [county, dbItemNo]);
+        logWarning(`Added DB admin2 value for ${city}, ${state}, ${country}: ${county}`, false);
+      }
+
+      if (!dbState && state) {
+        await connection.queryResults('UPDATE atlas2 SET admin1 = ? WHERE item_no = ?', [state, dbItemNo]);
+        logWarning(`Added DB admin1 value for ${city}, ${country}: ${county}`, false);
+      }
+    }
+  }
 }

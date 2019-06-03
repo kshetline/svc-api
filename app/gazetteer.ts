@@ -58,9 +58,9 @@ export const code3ToCode2: Record<string, string> = {};
 export const new3ToOld2: Record<string, string> = {};
 
 export const usCounties = new Set<string>();
-const celestialNames = new Set<string>();
+export const celestialNames = new Set<string>();
 
-const states = [
+export const states = [
   'Alabama', 'AL',
   'Alaska', 'AK',
   'American Samoa', 'AS',
@@ -224,7 +224,7 @@ export async function initGazetteer() {
     input.on('data', (data: Buffer) => {
       const lines = data.toString('utf8').split(/\r\n|\n|\r/);
 
-      lines.forEach(line => celestialNames.add(line.trim()));
+      lines.forEach(line => celestialNames.add(makePlainASCII_UC(line.trim())));
     });
 
     await finished(input);

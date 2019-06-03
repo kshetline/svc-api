@@ -60,6 +60,8 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
   }
 
   if (geonames) {
+    metrics.rawCount = geonames.length;
+
     geonames.every(geoname => {
       const city: string = doZip ? geoname.placeName : geoname.name;
       let county: string = geoname.adminName2;

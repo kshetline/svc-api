@@ -1,9 +1,9 @@
 import { Request, Response, Router } from 'express';
 import mime from 'mime';
 
-import { asyncHandler, MIN_EXTERNAL_SOURCE, notFoundForEverythingElse, processMillis, toBoolean, toInt } from './common';
-import { doDataBaseSearch, hasSearchBeenDoneRecently, pool } from './atlas_database';
-import { initGazetteer, LocationMap, ParsedSearchString, parseSearchString, roughDistanceBetweenLocationsInKm } from './gazetteer';
+import { asyncHandler, makePlainASCII_UC, MIN_EXTERNAL_SOURCE, notFoundForEverythingElse, processMillis, toBoolean, toInt, formatVariablePrecision } from './common';
+import { doDataBaseSearch, hasSearchBeenDoneRecently, logSearchResults, pool, updateAtlasDB } from './atlas_database';
+import { celestialNames, code2ToCode3, code3ToName, initGazetteer, LocationMap, longStates, ParsedSearchString, parseSearchString, roughDistanceBetweenLocationsInKm, states } from './gazetteer';
 import { SearchResult } from './search-result';
 import { AtlasLocation } from './atlas-location';
 import { MapClass } from './map-class';
@@ -11,6 +11,7 @@ import { GettyMetrics, gettySearch } from './getty-search';
 import { initTimezones } from './timezones';
 import { GeoNamesMetrics, geoNamesSearch } from './geo-names-search';
 import { svcApiConsole } from './svc-api-logger';
+import { PoolConnection } from './mysql-await-async';
 
 export const router = Router();
 
@@ -32,6 +33,7 @@ interface RemoteSearchResults {
 const DEFAULT_MATCH_LIMIT = 75;
 const MAX_MATCH_LIMIT = 500;
 const REFRESH_TIME_FOR_INIT_DATA = 86400; // seconds
+const DB_UPDATE = true;
 
 let lastInit = 0;
 
@@ -59,16 +61,22 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const remoteMode = (/skip|normal|extend|forced|only|geonames|getty/i.test(req.query.remote) ? req.query.remote.toLowerCase() : 'skip') as RemoteMode;
   const withoutDB = /only|geonames|getty/i.test(remoteMode);
   const extend = (remoteMode === 'extend' || remoteMode === 'only' || remoteMode === 'forced');
+  const client = (req.query.client ? req.query.client.toLowerCase() : '');
+  const svc = (!client || client === 'sa' || client === 'web');
   const limit = Math.min(toInt(req.query.limit, DEFAULT_MATCH_LIMIT), MAX_MATCH_LIMIT);
+  const noTrace = toBoolean(req.query.notrace, true) || withoutDB;
+  const dbUpdate = DB_UPDATE && !noTrace;
 
   const parsed = parseSearchString(q, version < 3 ? 'loose' : 'strict');
   const result = new SearchResult(q, parsed.normalizedSearch);
   let consultRemoteData = false;
-  let remoteSearchResults;
+  let remoteResults: RemoteSearchResults;
   let dbMatchedOnlyBySound = false;
   let dbMatches: LocationMap;
   let dbError: string;
   let gotBetterMatchesFromRemoteData = false;
+  let celestial = false;
+  let suggestions: string;
 
   for (let attempt = 0; attempt < 2; ++attempt) {
     const connection = await pool.getConnection();
@@ -112,9 +120,9 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
       const doGeonames = remoteMode !== 'getty';
       const doGetty = remoteMode !== 'geonames';
 
-      remoteSearchResults = await remoteSourcesSearch(parsed, doGeonames, doGetty, false);
+      remoteResults = await remoteSourcesSearch(parsed, doGeonames, doGetty, false);
 
-      if (remoteSearchResults.matches > 0 && dbMatchedOnlyBySound) {
+      if (remoteResults.matches > 0 && dbMatchedOnlyBySound) {
         gotBetterMatchesFromRemoteData = true;
         dbMatches = undefined;
       }
@@ -128,24 +136,164 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   if (dbMatches)
     copyAndMergeLocations(mergedMatches, dbMatches);
 
-  if (remoteSearchResults) {
-    if (remoteSearchResults.geoNamesMatches)
-      copyAndMergeLocations(mergedMatches, remoteSearchResults.geoNamesMatches);
+  if (remoteResults) {
+    if (remoteResults.geoNamesMatches)
+      copyAndMergeLocations(mergedMatches, remoteResults.geoNamesMatches);
 
-    if (remoteSearchResults.gettyMatches)
-      copyAndMergeLocations(mergedMatches, remoteSearchResults.gettyMatches);
+    if (remoteResults.gettyMatches)
+      copyAndMergeLocations(mergedMatches, remoteResults.gettyMatches);
   }
 
-  const uniqueMatches = eliminateDuplicates(mergedMatches, limit + 1);
+  const uniqueMatches = eliminateDuplicatesAndSort(mergedMatches, limit + 1);
 
   if (uniqueMatches.length > limit) {
     uniqueMatches.length = limit;
     result.limitReached = true;
   }
 
-  console.log(dbError, gotBetterMatchesFromRemoteData); // TODO: Remove
-
   result.matches = uniqueMatches;
+
+  if (consultRemoteData) {
+    if (remoteResults.geoNamesMetrics) {
+      const metrics = remoteResults.geoNamesMetrics;
+      const retrievalTime = formatVariablePrecision(metrics.retrievalTime / 1000);
+
+      result.appendInfoLine(`GeoName raw matches: ${metrics.rawCount}, filtered matches: ${metrics.matchedCount}, \
+retrieval time: ${retrievalTime}s.`);
+    }
+
+    if (remoteResults.gettyMetrics) {
+      const metrics = remoteResults.gettyMetrics;
+      const totalTime = formatVariablePrecision(metrics.totalTime / 1000);
+      const preliminaryTime = formatVariablePrecision(metrics.preliminaryTime / 1000);
+      const retrievalTime = formatVariablePrecision(metrics.retrievalTime / 1000);
+
+      if (metrics.failedSyntax)
+        result.appendInfoLine('Getty failed search syntax: ' + metrics.failedSyntax);
+
+      result.appendInfoLine(`Getty remote data: ${metrics.retrievedCount}\
+${metrics.retrievedCount === metrics.matchedCount ? '' : ' of ' + metrics.matchedCount} \
+item${metrics.matchedCount === 1 ? '' : 's'} retrieved, total time: ${totalTime}s, preliminary time: \
+${preliminaryTime}s, retrieval time: ${retrievalTime}s.`);
+    }
+  }
+
+  // Returning one error will suffice. If this is set, no other errors will be reported.
+  if (dbError)
+    result.error = dbError;
+
+  if (consultRemoteData) {
+    if (remoteResults.geoNamesError && (!extend || remoteResults.gettyError))
+      result.appendWarningLine('Supplementary data temporarily unavailable.');
+    else if (remoteResults.geoNamesError || remoteResults.gettyError)
+      result.appendWarningLine('Some supplementary data temporarily unavailable.');
+  }
+
+  if (version > 2) {
+    celestial = checkCelestial(parsed.targetCity, result, svc);
+
+    if (uniqueMatches.length && !parsed.doZip)
+      suggestions = makeSuggestions(parsed.actualSearch, version, result, svc, client);
+  }
+
+  if (dbError == null && (remoteResults == null || remoteResults.noErrors)) {
+    let connection: PoolConnection;
+
+    try {
+      connection = await pool.getConnection();
+
+      if ((!await logSearchResults(connection, parsed.normalizedSearch, extend, uniqueMatches.length, dbUpdate) ||
+           gotBetterMatchesFromRemoteData) && consultRemoteData)
+        await updateAtlasDB(connection, uniqueMatches, dbUpdate);
+    }
+    catch (err) {
+      // If we can't update, no big deal. The user still has their data.
+      svcApiConsole.error(err.toString());
+    }
+
+    connection.release();
+  }
+
+  const log = [parsed.actualSearch + ': ' + uniqueMatches.length];
+
+  if (result.limitReached)
+    log.push('+');
+
+  if (consultRemoteData) {
+    log.push('(');
+    log.push(dbMatches ? dbMatches.size.toString() : '0');
+    log.push(';');
+
+    if (remoteResults.geoNamesMatches)
+      log.push(remoteResults.geoNamesMatches.size.toString());
+    else
+      log.push('-');
+
+    log.push(';');
+
+    if (remoteResults.gettyMatches)
+      log.push(remoteResults.gettyMatches.size.toString());
+    else
+      log.push('-');
+
+    log.push(')');
+  }
+  else
+    log.push('(db)');
+
+  if (dbError || (consultRemoteData && !remoteResults.noErrors)) {
+    log.push('[');
+
+    if (!consultRemoteData)
+      log.push(dbError);
+    else {
+      if (dbError)
+        log.push(dbError);
+      else
+        log.push('-');
+
+      log.push(';');
+
+      if (remoteResults.geoNamesError)
+        log.push(remoteResults.geoNamesError.getMessage());
+      else
+        log.push('-');
+
+      log.push(';');
+
+      if (remoteResults.gettyError)
+        log.push(remoteResults.gettyError.getMessage());
+      else
+        log.push('-');
+    }
+
+    log.push(']');
+  }
+
+  log.push('[');
+  log.push((processMillis() - startTime).toString());
+
+  if (client === 'sa')
+    log.push(';sa');
+
+  if (version >= 3) {
+    log.push(';v');
+    log.push(version.toString());
+  }
+
+  if (celestial)
+    log.push(';cele');
+
+  if (suggestions) {
+    log.push(';sug:');
+    log.push(suggestions);
+  }
+
+  log.push(']');
+
+  // logMessage(log.join(''), notrace);
+  console.log('Log message:', log.join(''));
+
   result.time = processMillis() - startTime;
 
   if (plainText) {
@@ -180,7 +328,7 @@ const MATCH_ADM  = /^A\.ADM/i;
 const MATCH_PPL  = /^P\.PPL/i;
 const MATCH_PPLX = /^P\.PPL\w/i;
 
-function eliminateDuplicates(mergedMatches: LocationArrayMap, limit: number): AtlasLocation[] {
+function eliminateDuplicatesAndSort(mergedMatches: LocationArrayMap, limit: number): AtlasLocation[] {
   const keys = mergedMatches.keys.sort();
 
   keys.forEach(key => {
@@ -364,7 +512,7 @@ function eliminateDuplicates(mergedMatches: LocationArrayMap, limit: number): At
     });
   });
 
-  return uniqueMatches.sort();
+  return uniqueMatches.sort((a, b) => a.compareTo(b));
 }
 
 async function remoteSourcesSearch(parsed: ParsedSearchString, doGeonames: boolean, doGetty: boolean, notrace: boolean): Promise<RemoteSearchResults> {
@@ -418,6 +566,147 @@ async function remoteSourcesSearch(parsed: ParsedSearchString, doGeonames: boole
   results.matches = matches;
 
   return results;
+}
+
+function checkCelestial(targetCity: string, result: SearchResult, svc: boolean): boolean {
+  if (celestialNames.has(makePlainASCII_UC(targetCity))) {
+    result.appendWarningLine('This search is for geographic locations only.');
+
+    if (svc) {
+      result.appendWarningLine('Use Sky → Show Names → One Specific Object... to find celestial objects.');
+      result.appendWarningLine('Check the Help page for more details.');
+      result.appendWarningLine('');
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+function makeSuggestions(searchStr: string, version: number, result: SearchResult, svc: boolean, client: string): string {
+  let commaMsg = '';
+  let country;
+  let showFormat = false;
+  let suggestion = null;
+  const suggestions: string[] = [];
+  let $: string[];
+
+  if (searchStr.indexOf(',') < 0 && /\w+\.?\s+\w+/.test(searchStr)) {
+    commaMsg = ' (Commas matter!)';
+
+    for (let i = 0; i < states.length; i += 2) {
+      let key = states[i];
+
+      if (($ = new RegExp('([^.]*).*(\\b' + key + ')\\.?$', 'i').exec(searchStr))) {
+        suggestion = $[1].trim() + ', ' + $[2].trim();
+        suggestions.push('A');
+
+        break;
+      }
+
+      key = states[i + 1];
+
+      if (!/[*.]/.test(key) && ($ = new RegExp('([^.]*).*(\\b' + key + ')\\.?$', 'i').exec(searchStr))) {
+        suggestion = $[1].trim() + ', ' + $[2].trim();
+        suggestions.push('B');
+
+        break;
+      }
+    }
+
+    if (suggestion === null) {
+      for (const key of Object.keys(code3ToName)) {
+        if (($ = new RegExp('([^.]*).*(\\b' + key + ')\\.?$', 'i').exec(searchStr))) {
+          suggestion = $[1].trim() + ', ' + $[2].trim();
+          suggestions.push('C');
+
+          break;
+        }
+
+        country = code3ToName[key];
+
+        if (!/[*.]/.test(country) && ($ = new RegExp('([^.]*).*(\\b' + country + ')\\.?$', 'i').exec(searchStr))) {
+          suggestion = $[1].trim() + ', ' + $[2].trim();
+          suggestions.push('D');
+
+          break;
+        }
+      }
+
+      if (suggestion == null) {
+        Object.keys(code2ToCode3).every(key => {
+          if (longStates[key])
+            return true;
+
+          if (($ = new RegExp('(.*)(\\b' + key + ')\\.?$', 'i').exec(searchStr)) || ($ = /(.*)(\bUK)\.?$/i.exec(searchStr))) {
+            suggestion = $[1].trim() + ', ' + $[2].trim();
+            suggestions.push('E');
+
+            return false;
+          }
+
+          return true;
+        });
+      }
+    }
+
+    if (suggestion != null)
+      result.appendWarningLine(`Did you mean "${suggestion}"? ${version < 3 ? commaMsg : ''}`);
+
+    if (commaMsg && version < 3) {
+      result.appendWarningLine('Perhaps a comma in the right place would help?');
+      suggestions.push('F');
+      showFormat = true;
+    }
+  }
+
+  if (searchStr.indexOf(',') < 0 && /([^.]{3,})\s*\.\s*(.+)/.test(searchStr)) {
+    result.appendWarningLine('Did you use a period where you meant to use a comma?');
+    suggestions.push('G');
+  }
+
+  if (/.+,.+ .+/.test(searchStr)) {
+    result.appendWarningLine('Did you provide *too much* information?');
+    result.appendWarningLine('Use ONE or TWO place names only.');
+    suggestions.push('J');
+    showFormat = true;
+  }
+
+  if (showFormat && svc && version < 3) {
+    result.appendWarningLine('- City   (by itself)');
+    result.appendWarningLine('- City, State   (US Only)');
+    result.appendWarningLine('- City, Province   (Canada Only)');
+    result.appendWarningLine('- City, Country');
+    result.appendWarningLine('- Zip Code   (by itself, US Only)');
+  }
+  else if (showFormat && svc) {
+    result.appendWarningLine('[ City ] [ -blank- ]');
+    result.appendWarningLine('[ City ] [ State ]    (US Only)');
+    result.appendWarningLine('[ City ] [ Province ]   (Canada Only)');
+    result.appendWarningLine('[ City ] [ Country ]');
+    result.appendWarningLine('[ Postal Code ] [ -blank- ]');
+  }
+
+  if (/.+\\..+\\./.test(searchStr)) {
+    result.appendWarningLine('Abbreviations work better without periods. (NY rather than N.Y.)');
+    suggestions.push('K');
+  }
+
+  if (/[!'#$%&()*+/:;<=>?@^_`{|}~]/.test(searchStr)) {
+    result.appendWarningLine('Avoid punctuation other than commas.');
+    suggestions.push('l');
+  }
+
+  // Only provide first warning to the web client.
+  if (client === 'web' && result.warning) {
+    const nl = result.warning.indexOf('\n');
+
+    if (nl > 0)
+      result.warning = result.warning.substring(0, nl);
+  }
+
+  return suggestions.join('');
 }
 
 notFoundForEverythingElse(router);

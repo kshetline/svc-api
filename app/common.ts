@@ -25,6 +25,15 @@ export function processMillis(): number {
   }
 }
 
+export function formatVariablePrecision(value: number, maxDecimals = 3) {
+  let result = value.toFixed(maxDecimals);
+
+  if (result.substr(-1) === '0')
+    result = result.replace(/\.?0+$/, '');
+
+  return result;
+}
+
 export function notFoundForEverythingElse(router: Router) {
   router.get('*', (req: Request, res: Response) => notFound(res));
 }

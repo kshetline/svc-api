@@ -1,4 +1,5 @@
 import { AtlasLocation } from './atlas-location';
+import { formatVariablePrecision } from './common';
 
 export class SearchResult {
   originalSearch: string;
@@ -46,18 +47,10 @@ export class SearchResult {
 
   toPlainText(): string {
     const text: string[] = [];
-    const sorted = (this.matches ? this.matches.sort((a, b) => {
-        if (a.rank < b.rank) // Descending rank order as primary sort
-          return 1;
-        else if (a.rank > b.rank)
-          return -1;
-        else // ...but ascending name order as secondary sort
-          return a.displayName.localeCompare(b.displayName, 'en');
-      }) : this.matches);
 
     text.push(`originalSearch: ${this.originalSearch}`);
     text.push(`normalizedSearch: ${this.normalizedSearch}`);
-    text.push(`time: ${(this.time / 1000).toFixed(3)} seconds`);
+    text.push(`time: ${formatVariablePrecision(this.time / 1000)}s`);
 
     if (this.error)
       text.push(`error: ${this.error}`);
@@ -66,12 +59,12 @@ export class SearchResult {
         text.push(`warning: ${this.warning.replace('\n', '\u23CE\n')}`);
 
       if (this.info)
-        text.push(`warning: ${this.info.replace('\n', '\u23CE\n')}`);
+        text.push(`info: ${this.info.replace('\n', '\u23CE\n')}`);
 
       text.push(`count: ${this.count}` + (this.limitReached ? ' (limit reached)' : ''));
 
-      if (sorted)
-        sorted.forEach(match => text.push(match.toString()));
+      if (this.matches)
+        this.matches.forEach(match => text.push(match.toString()));
     }
 
     text.push('');
