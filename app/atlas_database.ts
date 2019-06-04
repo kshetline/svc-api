@@ -36,7 +36,7 @@ export async function hasSearchBeenDoneRecently(connection: PoolConnection, sear
   return await logSearchResults(connection, searchStr, extended, NO_RESULTS_YET, false);
 }
 
-export async function logSearchResults(connection: PoolConnection, searchStr: string, extended: boolean, matchCount: number, dbUpdate: boolean): Promise<boolean> {
+export async function logSearchResults(connection: PoolConnection, searchStr: string, extended: boolean, matchCount: number, dbUpdate = true): Promise<boolean> {
   let dbHits = 0;
   let ageMonths = -1;
   let found = false;

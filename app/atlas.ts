@@ -75,8 +75,6 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   let dbMatches: LocationMap;
   let dbError: string;
   let gotBetterMatchesFromRemoteData = false;
-  let celestial = false;
-  let suggestions: string;
 
   for (let attempt = 0; attempt < 2; ++attempt) {
     const connection = await pool.getConnection();
@@ -153,153 +151,16 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
   result.matches = uniqueMatches;
 
-  if (consultRemoteData) {
-    if (remoteResults.geoNamesMetrics && !remoteResults.geoNamesError) {
-      const metrics = remoteResults.geoNamesMetrics;
-      const retrievalTime = formatVariablePrecision(metrics.retrievalTime / 1000);
+  const { celestial, suggestions } = summarizeResults(result, remoteResults, dbError, extend, version, parsed, svc, client);
 
-      result.appendInfoLine(`GeoName raw matches: ${metrics.rawCount}, filtered matches: ${metrics.matchedCount}, \
-retrieval time: ${retrievalTime}s.`);
-    }
+  if (!dbError)
+    await updateDbIfRequired(uniqueMatches, remoteResults, parsed.normalizedSearch, gotBetterMatchesFromRemoteData, extend, dbUpdate);
 
-    if (remoteResults.gettyMetrics && !remoteResults.gettyError) {
-      const metrics = remoteResults.gettyMetrics;
-      const totalTime = formatVariablePrecision(metrics.totalTime / 1000);
-      const preliminaryTime = formatVariablePrecision(metrics.preliminaryTime / 1000);
-      const retrievalTime = formatVariablePrecision(metrics.retrievalTime / 1000);
-
-      if (metrics.failedSyntax)
-        result.appendInfoLine('Getty failed search syntax: ' + metrics.failedSyntax);
-
-      result.appendInfoLine(`Getty remote data: ${metrics.retrievedCount}\
-${metrics.retrievedCount === metrics.matchedCount ? '' : ' of ' + metrics.matchedCount} \
-item${metrics.matchedCount === 1 ? '' : 's'} retrieved, total time: ${totalTime}s, preliminary time: \
-${preliminaryTime}s, retrieval time: ${retrievalTime}s.`);
-    }
-  }
-
-  // Returning one error will suffice.
-  if (dbError)
-    result.error = dbError;
-  else
-    result.error = consultRemoteData && (remoteResults.geoNamesError || remoteResults.gettyError);
-
-  if (consultRemoteData) {
-    if (remoteResults.geoNamesError && (!extend || remoteResults.gettyError))
-      result.appendWarningLine('Supplementary data temporarily unavailable.');
-    else if (remoteResults.geoNamesError || remoteResults.gettyError)
-      result.appendWarningLine('Some supplementary data temporarily unavailable.');
-  }
-
-  if (version > 2) {
-    celestial = checkCelestial(parsed.targetCity, result, svc);
-
-    if (!uniqueMatches.length && !parsed.doZip)
-      suggestions = makeSuggestions(parsed.actualSearch, version, result, svc, client);
-  }
-
-  if (dbError == null && (remoteResults == null || remoteResults.noErrors)) {
-    let connection: PoolConnection;
-
-    try {
-      connection = await pool.getConnection();
-
-      if ((!await logSearchResults(connection, parsed.normalizedSearch, extend, uniqueMatches.length, dbUpdate) ||
-           gotBetterMatchesFromRemoteData) && consultRemoteData)
-        await updateAtlasDB(connection, uniqueMatches, dbUpdate);
-    }
-    catch (err) {
-      // If we can't update, no big deal. The user still has their data.
-      svcApiConsole.error(err.toString());
-    }
-
-    connection.release();
-  }
-
-  const log = [parsed.actualSearch + ': ' + uniqueMatches.length];
-
-  if (result.limitReached)
-    log.push('+');
-
-  // This next line shouldn't be necessary, but it helps suppress invalid "possibly null or undefined" warnings.
-  // In the code above, the Inspector is smart enough to realize that if consultRemoteData is true, remoteResults
-  // is defined. It probably means this section of code is too long and is confusing the Inspector!
-  remoteResults = (remoteResults ? remoteResults : {} as RemoteSearchResults);
-
-  if (consultRemoteData) {
-    log.push('(');
-    log.push(dbMatches ? dbMatches.size.toString() : '0');
-    log.push(';');
-
-    if (remoteResults.geoNamesMatches)
-      log.push(remoteResults.geoNamesMatches.size.toString());
-    else
-      log.push('-');
-
-    log.push(';');
-
-    if (remoteResults.gettyMatches)
-      log.push(remoteResults.gettyMatches.size.toString());
-    else
-      log.push('-');
-
-    log.push(')');
-  }
-  else
-    log.push('(db)');
-
-  if (dbError || (consultRemoteData && !remoteResults.noErrors)) {
-    log.push('[');
-
-    if (!consultRemoteData)
-      log.push(dbError);
-    else {
-      if (dbError)
-        log.push(dbError);
-      else
-        log.push('-');
-
-      log.push(';');
-
-      if (remoteResults.geoNamesError)
-        log.push(remoteResults.geoNamesError);
-      else
-        log.push('-');
-
-      log.push(';');
-
-      if (remoteResults.gettyError)
-        log.push(remoteResults.gettyError);
-      else
-        log.push('-');
-    }
-
-    log.push(']');
-  }
-
-  log.push('[');
-  log.push((processMillis() - startTime).toString());
-
-  if (client === 'sa')
-    log.push(';sa');
-
-  if (version >= 3) {
-    log.push(';v');
-    log.push(version.toString());
-  }
-
-  if (celestial)
-    log.push(';cele');
-
-  if (suggestions) {
-    log.push(';sug:');
-    log.push(suggestions);
-  }
-
-  log.push(']');
+  const log = createCompactLogSummary(result, remoteResults, dbMatches ? dbMatches.size : 0, dbError, startTime,
+    client, version, celestial, suggestions);
 
   // logMessage(log.join(''), noTrace);
-  console.log('Log message:', log.join(''));
+  console.log('Log message:', log);
 
   result.time = processMillis() - startTime;
 
@@ -571,6 +432,162 @@ async function remoteSourcesSearch(parsed: ParsedSearchString, doGeonames: boole
   results.matches = matches;
 
   return results;
+}
+
+function summarizeResults(result: SearchResult, remoteResults: RemoteSearchResults, dbError: string,
+                          extend: boolean, version: number, parsed: ParsedSearchString,
+                          svc: boolean, client: string) {
+  if (remoteResults) {
+    if (remoteResults.geoNamesMetrics && !remoteResults.geoNamesError) {
+      const metrics = remoteResults.geoNamesMetrics;
+      const retrievalTime = formatVariablePrecision(metrics.retrievalTime / 1000);
+
+      result.appendInfoLine(`GeoName raw matches: ${metrics.rawCount}, filtered matches: ${metrics.matchedCount}, \
+retrieval time: ${retrievalTime}s.`);
+    }
+
+    if (remoteResults.gettyMetrics && !remoteResults.gettyError) {
+      const metrics = remoteResults.gettyMetrics;
+      const totalTime = formatVariablePrecision(metrics.totalTime / 1000);
+      const preliminaryTime = formatVariablePrecision(metrics.preliminaryTime / 1000);
+      const retrievalTime = formatVariablePrecision(metrics.retrievalTime / 1000);
+
+      if (metrics.failedSyntax)
+        result.appendInfoLine('Getty failed search syntax: ' + metrics.failedSyntax);
+
+      result.appendInfoLine(`Getty remote data: ${metrics.retrievedCount}\
+${metrics.retrievedCount === metrics.matchedCount ? '' : ' of ' + metrics.matchedCount} \
+item${metrics.matchedCount === 1 ? '' : 's'} retrieved, total time: ${totalTime}s, preliminary time: \
+${preliminaryTime}s, retrieval time: ${retrievalTime}s.`);
+    }
+  }
+
+  // Returning one error will suffice.
+  if (dbError)
+    result.error = dbError;
+  else
+    result.error = remoteResults && (remoteResults.geoNamesError || remoteResults.gettyError);
+
+  if (remoteResults) {
+    if (remoteResults.geoNamesError && (!extend || remoteResults.gettyError))
+      result.appendWarningLine('Supplementary data temporarily unavailable.');
+    else if (remoteResults.geoNamesError || remoteResults.gettyError)
+      result.appendWarningLine('Some supplementary data temporarily unavailable.');
+  }
+
+  let celestial = false;
+  let suggestions: string;
+
+  if (version > 2) {
+    celestial = checkCelestial(parsed.targetCity, result, svc);
+
+    if (!result.count && !parsed.doZip)
+      suggestions = makeSuggestions(parsed.actualSearch, version, result, svc, client);
+  }
+
+  return { celestial, suggestions };
+}
+
+async function updateDbIfRequired(uniqueMatches: AtlasLocation[], remoteResults: RemoteSearchResults, normalizedSearch: string,
+    gotBetterMatchesFromRemoteData: boolean, extend: boolean, dbUpdate: boolean): Promise<void> {
+  if (!remoteResults || remoteResults.noErrors) {
+    let connection: PoolConnection;
+
+    try {
+      connection = await pool.getConnection();
+
+      if ((!await logSearchResults(connection, normalizedSearch, extend, uniqueMatches.length) ||
+           gotBetterMatchesFromRemoteData) && remoteResults)
+        await updateAtlasDB(connection, uniqueMatches, dbUpdate);
+    }
+    catch (err) {
+      // If we can't update, no big deal. The user still has their data.
+      svcApiConsole.error(err.toString());
+    }
+
+    connection.release();
+  }
+}
+
+function createCompactLogSummary(result: SearchResult, remoteResults: RemoteSearchResults, dbMatchCount: number,
+                                 dbError: string, startTime: number, client: string, version: number,
+                                 celestial: boolean, suggestions: string): string {
+  const log = [result.originalSearch + ': ' + result.count];
+
+  if (result.limitReached)
+    log.push('+');
+
+  if (remoteResults) {
+    log.push('(');
+    log.push(dbMatchCount.toString());
+    log.push(';');
+
+    if (remoteResults.geoNamesMatches)
+      log.push(remoteResults.geoNamesMatches.size.toString());
+    else
+      log.push('-');
+
+    log.push(';');
+
+    if (remoteResults.gettyMatches)
+      log.push(remoteResults.gettyMatches.size.toString());
+    else
+      log.push('-');
+
+    log.push(')');
+  }
+  else
+    log.push('(db)');
+
+  if (dbError || (remoteResults && !remoteResults.noErrors)) {
+    log.push('[');
+
+    if (!remoteResults)
+      log.push(dbError);
+    else {
+      if (dbError)
+        log.push(dbError);
+      else
+        log.push('-');
+
+      log.push(';');
+
+      if (remoteResults.geoNamesError)
+        log.push(remoteResults.geoNamesError);
+      else
+        log.push('-');
+
+      log.push(';');
+
+      if (remoteResults.gettyError)
+        log.push(remoteResults.gettyError);
+      else
+        log.push('-');
+    }
+
+    log.push(']');
+  }
+
+  log.push('[');
+  log.push(formatVariablePrecision((processMillis() - startTime) / 1000) + 's');
+
+  if (client === 'sa')
+    log.push(';sa');
+
+  if (version >= 3) {
+    log.push(';v');
+    log.push(version.toString());
+  }
+
+  if (celestial)
+    log.push(';cele');
+
+  if (suggestions)
+    log.push(';sug:' + suggestions);
+
+  log.push(']');
+
+  return log.join('');
 }
 
 function checkCelestial(targetCity: string, result: SearchResult, svc: boolean): boolean {

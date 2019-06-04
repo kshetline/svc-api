@@ -3,6 +3,7 @@ import { join as pathJoin } from 'path';
 import stream, { Writable } from 'stream';
 import { WriteStream } from 'fs';
 import { Request, Response } from 'express';
+import * as util from 'util';
 
 export let svcApiLogStream: Writable | WriteStream = process.stdout;
 
@@ -46,27 +47,12 @@ export function svcApiSkipFilter(req: Request, res: Response): boolean {
 }
 
 function argsToString(...args: any[]): string {
-  const sb: string[] = [];
+  let result = '';
 
   if (args.length > 0)
-    sb.push(': ');
+    result += ': ' + util.format(args[0], ...(args.splice(1)));
 
-  args.forEach(arg => {
-    let s: string;
-
-    if (arg === undefined)
-      s = 'undefined';
-    else if (arg === null)
-      s = 'null';
-    else if (typeof arg === 'object')
-      s = JSON.stringify(arg);
-    else
-      s = arg.toString();
-
-    sb.push(s);
-  });
-
-  return sb.join('\t') + '\n';
+  return result + '\n';
 }
 
 class SvcApiConsole {
