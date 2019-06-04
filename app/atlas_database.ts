@@ -24,12 +24,12 @@ pool.on('connection', connection => {
   connection.query("SET NAMES 'utf8'");
 });
 
-export function logMessage(message: string, notrace = true): void {
-  svcApiConsole.info(message, notrace);
+export function logMessage(message: string, noTrace = true): void {
+  svcApiConsole.info(message, noTrace);
 }
 
-export function logWarning(message: string, notrace = true): void {
-  svcApiConsole.warn(message, notrace);
+export function logWarning(message: string, noTrace = true): void {
+  svcApiConsole.warn(message, noTrace);
 }
 
 export async function hasSearchBeenDoneRecently(connection: PoolConnection, searchStr: string, extended: boolean): Promise<boolean> {
@@ -157,11 +157,11 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
 
       const results = await connection.queryResults(query, values);
 
-      (results ? results : []).every((result: any) => {
+      for (const result of (results ? results : [])) {
         const itemNo = result.item_no;
 
         if (examined.has(itemNo))
-          return true;
+          continue;
 
         examined.add(itemNo);
 
@@ -180,11 +180,9 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
         const source: number = result.source;
         const geonameID: number = result.geonames_id;
 
-        if (source >= MIN_EXTERNAL_SOURCE && !extendedSearch && pass === 0)
-          return true;
-
-        if (!closeMatchForState(parsed.targetState, state, country))
-          return true;
+        if ((source >= MIN_EXTERNAL_SOURCE && !extendedSearch && pass === 0) ||
+            !closeMatchForState(parsed.targetState, state, country))
+          continue;
 
         if (altName)
           city = altName;
@@ -227,8 +225,9 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
         key = makeLocationKey(city, state, country, matches);
         matches.set(key, location);
 
-        return (matches.size <= maxMatches * 4);
-      });
+        if (matches.size > maxMatches * 4)
+          break;
+      }
 
       // Skip SOUNDS_LIKE search step on first pass, or if better matches have already been found. Only one step needed for postal codes.
       if (((pass === 0 || matches.size > 0) && matchType >= MatchType.STARTS_WITH) || parsed.doZip)
@@ -275,7 +274,7 @@ export async function updateAtlasDB(connection: PoolConnection, matchList: Atlas
     let dbCounty = null;
     let dbState = null;
 
-    (results ? results : []).every((result: any) => {
+    for (const result of (results ? results : [])) {
       dbItemNo = result.item_no;
       dbCounty = result.admin2;
       dbState  = result.admin1;
@@ -286,7 +285,7 @@ export async function updateAtlasDB(connection: PoolConnection, matchList: Atlas
         else
           found = true;
 
-        return true;
+        continue;
       }
 
       const dbCountry   = result.country;
@@ -297,19 +296,18 @@ export async function updateAtlasDB(connection: PoolConnection, matchList: Atlas
       if (country === dbCountry && distance < 10 &&
          (country !== 'USA' && country !== 'CAN' || state === dbState)) {
         found = true;
-        return false;
-      }
 
-      return true;
-    });
+        break;
+      }
+    }
 
     // TODO: Check for apostrophes and Mc/Mac.
 
     if (!dbUpdate) {
       if (asUpdate)
-        svcApiConsole.log('Updated: ' + location);
+        svcApiConsole.log('Could update: ' + location);
       else if (!found)
-        svcApiConsole.log('New data: ' + location);
+        svcApiConsole.log('Potential new data: ' + location);
 
       continue;
     }
@@ -321,20 +319,20 @@ export async function updateAtlasDB(connection: PoolConnection, matchList: Atlas
 
       values.length = 0;
       values.push(keyName);
-      values.push(variant);
+      values.push(variant || '');
       values.push(city);
-      values.push(county);
-      values.push(state);
-      values.push(country);
+      values.push(county || '');
+      values.push(state || '');
+      values.push(country || '');
       values.push(location.latitude);
       values.push(location.longitude);
-      values.push(location.elevation);
+      values.push(location.elevation || 0);
       values.push(location.zone);
-      values.push(location.zip);
-      values.push(location.rank);
+      values.push(location.zip || '');
+      values.push(location.rank || 0);
       values.push(location.placeType);
       values.push(makePlainASCII(city));
-      values.push(location.source);
+      values.push(location.source || 0);
       values.push(dbItemNo);
 
       await connection.queryResults(query, values);
@@ -349,20 +347,20 @@ export async function updateAtlasDB(connection: PoolConnection, matchList: Atlas
                '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SOUNDEX(?), ?)';
       values.length = 0;
       values.push(keyName);
-      values.push(variant);
+      values.push(variant || '');
       values.push(city);
-      values.push(county);
-      values.push(state);
-      values.push(country);
+      values.push(county || '');
+      values.push(state || '');
+      values.push(country || '');
       values.push(location.latitude);
       values.push(location.longitude);
-      values.push(location.elevation);
+      values.push(location.elevation || 0);
       values.push(location.zone);
-      values.push(location.zip);
-      values.push(location.rank);
+      values.push(location.zip || '');
+      values.push(location.rank || 0);
       values.push(location.placeType);
       values.push(makePlainASCII(city));
-      values.push(location.source);
+      values.push(location.source || 0);
 
       await connection.queryResults(query, values);
       await logMessage(`Added new entry for ${city}, ${state}, ${country}, ${location.source}`);

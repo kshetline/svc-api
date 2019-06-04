@@ -4,7 +4,7 @@ import { AtlasLocation } from './atlas-location';
 import { Html5Entities } from 'html-entities';
 import { MapClass } from './map-class';
 import { logWarning } from './atlas_database';
-import { cos, cos_deg, PI, sin_deg } from 'ks-math';
+import { acos, cos_deg, PI, sin_deg } from 'ks-math';
 import { join as pathJoin } from 'path';
 import { svcApiConsole } from './svc-api-logger';
 
@@ -456,7 +456,7 @@ const IGNORED_PLACES = new RegExp('bloomingtonmn|census designated place|colonia
                                   'election precinct|\\(historical\\)|mobilehome|subdivision|unorganized territory|\\{|\\}', 'i');
 
 export function processPlaceNames(city: string, county: string, state: string, country: string, continent: string,
-                           decodeHTML = false, notrace = true): ProcessedNames {
+                           decodeHTML = false, noTrace = true): ProcessedNames {
   let abbrevState: string;
   let code3: string;
   let longState: string;
@@ -488,7 +488,7 @@ export function processPlaceNames(city: string, county: string, state: string, c
   ({name: city, variant} = fixRearrangedName(city));
 
   if (/,/.test(city))
-    logWarning(`City name "${city}" (${state}, ${country}) contains a comma.`, notrace);
+    logWarning(`City name "${city}" (${state}, ${country}) contains a comma.`, noTrace);
 
   let $: string[];
 
@@ -514,7 +514,7 @@ export function processPlaceNames(city: string, county: string, state: string, c
     longCountry = code3ToName[country];
   }
   else {
-    logWarning(`Failed to recognize country "${country}" for city "${city}, ${state}".`, notrace);
+    logWarning(`Failed to recognize country "${country}" for city "${city}, ${state}".`, noTrace);
     country = country.replace(/^(.{0,2}).*$/, '$1?');
   }
 
@@ -537,7 +537,7 @@ export function processPlaceNames(city: string, county: string, state: string, c
       if (abbrevState)
         state = abbrevState;
       else
-        logWarning(`Failed to recognize state/province "${state}" in country ${country}.`, notrace);
+        logWarning(`Failed to recognize state/province "${state}" in country ${country}.`, noTrace);
     }
 
     if (county && country === 'USA' && usTerritories.indexOf(state) < 0) {
@@ -565,7 +565,7 @@ export function processPlaceNames(city: string, county: string, state: string, c
             county = 'City of ' + county;
         }
         else
-          logWarning(`Failed to recognize US county "${county}" for city "${city}".`, notrace);
+          logWarning(`Failed to recognize US county "${county}" for city "${city}".`, noTrace);
       }
     }
   }
@@ -600,7 +600,7 @@ export function getFlagCode(country: string, state: string): string {
 }
 
 export function roughDistanceBetweenLocationsInKm(lat1: number, long1: number, lat2: number, long2: number): number {
-  let deltaRad = cos(sin_deg(lat1) * sin_deg(lat2) + cos_deg(lat1) * cos_deg(lat2) * cos_deg(long1 - long2));
+  let deltaRad = acos(sin_deg(lat1) * sin_deg(lat2) + cos_deg(lat1) * cos_deg(lat2) * cos_deg(long1 - long2));
 
   while (deltaRad > PI)
     deltaRad -= PI;

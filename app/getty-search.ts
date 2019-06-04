@@ -18,13 +18,13 @@ const MAX_TIME_GETTY = 110; // seconds
 const PREFERRED_RETRIEVAL_TIME_GETTY =  40; // seconds
 const FAKE_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:66.0) Gecko/20100101 Firefox/66.0';
 
-export async function gettySearch(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationMap> {
-  return timedPromise(gettySearchAux(targetCity, targetState, metrics, notrace), MAX_TIME_GETTY * 1000, 'Getty search timed out');
+export async function gettySearch(targetCity: string, targetState: string, metrics: GettyMetrics, noTrace: boolean): Promise<LocationMap> {
+  return timedPromise(gettySearchAux(targetCity, targetState, metrics, noTrace), MAX_TIME_GETTY * 1000, 'Getty search timed out');
 }
 
-async function gettySearchAux(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationMap> {
+async function gettySearchAux(targetCity: string, targetState: string, metrics: GettyMetrics, noTrace: boolean): Promise<LocationMap> {
   const startTime = processMillis();
-  const keyedPlaces = await gettyPreliminarySearch(targetCity, targetState, metrics, notrace);
+  const keyedPlaces = await gettyPreliminarySearch(targetCity, targetState, metrics, noTrace);
   const originalKeys = keyedPlaces.keys;
   const itemCount = keyedPlaces.size;
   const matches = new LocationMap();
@@ -56,7 +56,7 @@ async function gettySearchAux(targetCity: string, targetState: string, metrics: 
 
     goodFormat = false;
 
-    lines.every(line => {
+    for (const line of lines) {
       if (($ = /<B>ID: (\d+)<\/B>/.exec(line)) && key === $[1]) {
         pending = true;
         goodFormat = true;
@@ -81,11 +81,9 @@ async function gettySearchAux(targetCity: string, targetState: string, metrics: 
         matches.set(key, location);
         ++hasCoordinates;
 
-        return false;
+        break;
       }
-
-      return true;
-    });
+    }
 
     if (!goodFormat)
       throw new Error('Failed to parse secondary Getty data.');
@@ -114,7 +112,7 @@ async function gettySearchAux(targetCity: string, targetState: string, metrics: 
 
 enum Stage { LOOKING_FOR_ID_CODE, LOOKING_FOR_PLACE_NAME, LOOKING_FOR_HIERARCHY, LOOKING_FOR_EXTRAS_OR_END, PLACE_HAS_BEEN_PARSED }
 
-async function gettyPreliminarySearch(targetCity: string, targetState: string, metrics: GettyMetrics, notrace: boolean): Promise<LocationMap> {
+async function gettyPreliminarySearch(targetCity: string, targetState: string, metrics: GettyMetrics, noTrace: boolean): Promise<LocationMap> {
   let keyedPlaces = new LocationMap();
   const altKeyedPlaces = new LocationMap();
   let matchCount = 0;
@@ -292,7 +290,7 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
           else
             country = city;
 
-          const names = processPlaceNames(city, county, state, country, continent, true, notrace);
+          const names = processPlaceNames(city, county, state, country, continent, true, noTrace);
 
           if (!names)
             continue;
@@ -325,17 +323,15 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
               isMatch = true;
             }
             else if (altNames) {
-              altNames.split(';').every(altName => {
+              for (const altName of altNames.split(';')) {
                 if (closeMatchForCity(targetCity, altName)) {
                   city = altName;
                   isMatch = true;
                   asAlternate = true;
 
-                  return false;
+                  break;
                 }
-
-                return true;
-              });
+              }
             }
           }
 

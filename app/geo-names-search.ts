@@ -13,11 +13,11 @@ export interface GeoNamesMetrics {
 const MAX_TIME_GEONAMES = 20; // seconds
 const FAKE_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:66.0) Gecko/20100101 Firefox/66.0';
 
-export async function geoNamesSearch(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationMap> {
-  return timedPromise(geoNamesSearchAux(targetCity, targetState, doZip, metrics, notrace), MAX_TIME_GEONAMES * 1000, 'GeoNames search timed out');
+export async function geoNamesSearch(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, noTrace: boolean): Promise<LocationMap> {
+  return timedPromise(geoNamesSearchAux(targetCity, targetState, doZip, metrics, noTrace), MAX_TIME_GEONAMES * 1000, 'GeoNames search timed out');
 }
 
-async function geoNamesSearchAux(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, notrace: boolean): Promise<LocationMap> {
+async function geoNamesSearchAux(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, noTrace: boolean): Promise<LocationMap> {
   const startTime = processMillis();
   const keyedPlaces = new LocationMap();
 
@@ -62,7 +62,7 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
   if (geonames) {
     metrics.rawCount = geonames.length;
 
-    geonames.every(geoname => {
+    for (const geoname of geonames) {
       const city: string = doZip ? geoname.placeName : geoname.name;
       let county: string = geoname.adminName2;
       let state: string;
@@ -83,10 +83,10 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
       else
         state = geoname.adminName1;
 
-      const names = processPlaceNames(city, county, state, country, continent, false, notrace);
+      const names = processPlaceNames(city, county, state, country, continent, false, noTrace);
 
       if (!names)
-        return true;
+        continue;
 
       if ((doZip || closeMatchForCity(targetCity, names.city) || closeMatchForCity(targetCity, names.variant)) &&
            closeMatchForState(targetState, state, country))
@@ -126,10 +126,10 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
           ++metrics.matchedCount;
         }
       }
-
-      return true;
-    });
+    }
   }
+  else
+    metrics.rawCount = 0;
 
   metrics.retrievalTime = processMillis() - startTime;
 

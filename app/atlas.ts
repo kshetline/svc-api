@@ -22,10 +22,10 @@ class LocationArrayMap extends MapClass<string, AtlasLocation[]> {}
 interface RemoteSearchResults {
   geoNamesMatches: LocationMap;
   geoNamesMetrics: GeoNamesMetrics;
-  geoNamesError: any;
+  geoNamesError: string;
   gettyMatches: LocationMap;
   gettyMetrics: GettyMetrics;
-  gettyError: any;
+  gettyError: string;
   noErrors: boolean;
   matches: number;
 }
@@ -64,7 +64,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const client = (req.query.client ? req.query.client.toLowerCase() : '');
   const svc = (!client || client === 'sa' || client === 'web');
   const limit = Math.min(toInt(req.query.limit, DEFAULT_MATCH_LIMIT), MAX_MATCH_LIMIT);
-  const noTrace = toBoolean(req.query.notrace, true) || withoutDB;
+  const noTrace = toBoolean(req.query.notrace, true) || remoteMode === 'only';
   const dbUpdate = DB_UPDATE && !noTrace;
 
   const parsed = parseSearchString(q, version < 3 ? 'loose' : 'strict');
@@ -97,12 +97,12 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
         dbMatches = await doDataBaseSearch(connection, parsed, extend, limit + 1);
         dbMatchedOnlyBySound = true;
 
-        dbMatches.values.every(location => {
-          if (!location.matchedBySound)
+        for (const location of dbMatches.values) {
+          if (!location.matchedBySound) {
             dbMatchedOnlyBySound = false;
-
-          return !dbMatchedOnlyBySound;
-        });
+            break;
+          }
+        }
 
         dbError = undefined;
       }
@@ -120,7 +120,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
       const doGeonames = remoteMode !== 'getty';
       const doGetty = remoteMode !== 'geonames';
 
-      remoteResults = await remoteSourcesSearch(parsed, doGeonames, doGetty, false);
+      remoteResults = await remoteSourcesSearch(parsed, doGeonames, doGetty, noTrace);
 
       if (remoteResults.matches > 0 && dbMatchedOnlyBySound) {
         gotBetterMatchesFromRemoteData = true;
@@ -154,7 +154,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   result.matches = uniqueMatches;
 
   if (consultRemoteData) {
-    if (remoteResults.geoNamesMetrics) {
+    if (remoteResults.geoNamesMetrics && !remoteResults.geoNamesError) {
       const metrics = remoteResults.geoNamesMetrics;
       const retrievalTime = formatVariablePrecision(metrics.retrievalTime / 1000);
 
@@ -162,7 +162,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 retrieval time: ${retrievalTime}s.`);
     }
 
-    if (remoteResults.gettyMetrics) {
+    if (remoteResults.gettyMetrics && !remoteResults.gettyError) {
       const metrics = remoteResults.gettyMetrics;
       const totalTime = formatVariablePrecision(metrics.totalTime / 1000);
       const preliminaryTime = formatVariablePrecision(metrics.preliminaryTime / 1000);
@@ -178,9 +178,11 @@ ${preliminaryTime}s, retrieval time: ${retrievalTime}s.`);
     }
   }
 
-  // Returning one error will suffice. If this is set, no other errors will be reported.
+  // Returning one error will suffice.
   if (dbError)
     result.error = dbError;
+  else
+    result.error = consultRemoteData && (remoteResults.geoNamesError || remoteResults.gettyError);
 
   if (consultRemoteData) {
     if (remoteResults.geoNamesError && (!extend || remoteResults.gettyError))
@@ -192,7 +194,7 @@ ${preliminaryTime}s, retrieval time: ${retrievalTime}s.`);
   if (version > 2) {
     celestial = checkCelestial(parsed.targetCity, result, svc);
 
-    if (uniqueMatches.length && !parsed.doZip)
+    if (!uniqueMatches.length && !parsed.doZip)
       suggestions = makeSuggestions(parsed.actualSearch, version, result, svc, client);
   }
 
@@ -218,6 +220,11 @@ ${preliminaryTime}s, retrieval time: ${retrievalTime}s.`);
 
   if (result.limitReached)
     log.push('+');
+
+  // This next line shouldn't be necessary, but it helps suppress invalid "possibly null or undefined" warnings.
+  // In the code above, the Inspector is smart enough to realize that if consultRemoteData is true, remoteResults
+  // is defined. It probably means this section of code is too long and is confusing the Inspector!
+  remoteResults = (remoteResults ? remoteResults : {} as RemoteSearchResults);
 
   if (consultRemoteData) {
     log.push('(');
@@ -255,14 +262,14 @@ ${preliminaryTime}s, retrieval time: ${retrievalTime}s.`);
       log.push(';');
 
       if (remoteResults.geoNamesError)
-        log.push(remoteResults.geoNamesError.getMessage());
+        log.push(remoteResults.geoNamesError);
       else
         log.push('-');
 
       log.push(';');
 
       if (remoteResults.gettyError)
-        log.push(remoteResults.gettyError.getMessage());
+        log.push(remoteResults.gettyError);
       else
         log.push('-');
     }
@@ -291,7 +298,7 @@ ${preliminaryTime}s, retrieval time: ${retrievalTime}s.`);
 
   log.push(']');
 
-  // logMessage(log.join(''), notrace);
+  // logMessage(log.join(''), noTrace);
   console.log('Log message:', log.join(''));
 
   result.time = processMillis() - startTime;
@@ -515,12 +522,8 @@ function eliminateDuplicatesAndSort(mergedMatches: LocationArrayMap, limit: numb
   return uniqueMatches.sort((a, b) => a.compareTo(b));
 }
 
-async function remoteSourcesSearch(parsed: ParsedSearchString, doGeonames: boolean, doGetty: boolean, notrace: boolean): Promise<RemoteSearchResults> {
+async function remoteSourcesSearch(parsed: ParsedSearchString, doGeonames: boolean, doGetty: boolean, noTrace: boolean): Promise<RemoteSearchResults> {
   const results = {} as RemoteSearchResults;
-
-  results.geoNamesMetrics = {} as GeoNamesMetrics;
-  results.gettyMetrics = {} as GettyMetrics;
-
   const promises: Promise<LocationMap>[] = [];
   let geoNamesIndex = -1;
   let gettyIndex = -1;
@@ -529,13 +532,15 @@ async function remoteSourcesSearch(parsed: ParsedSearchString, doGeonames: boole
   let matches = 0;
 
   if (doGeonames) {
+    results.geoNamesMetrics = {} as GeoNamesMetrics;
     geoNamesIndex = nextIndex++;
-    promises.push(geoNamesSearch(parsed.targetCity, parsed.targetState, parsed.doZip, results.geoNamesMetrics, notrace));
+    promises.push(geoNamesSearch(parsed.targetCity, parsed.targetState, parsed.doZip, results.geoNamesMetrics, noTrace));
   }
 
   if (doGetty && !parsed.doZip) {
+    results.gettyMetrics = {} as GettyMetrics;
     gettyIndex = nextIndex /* ++ */; // TODO: Put back trailing ++ if another remote source is added.
-    promises.push(gettySearch(parsed.targetCity, parsed.targetState, results.gettyMetrics, notrace));
+    promises.push(gettySearch(parsed.targetCity, parsed.targetState, results.gettyMetrics, noTrace));
   }
 
   const locationsOrErrors = await Promise.all(promises.map(promise => promise.catch(err => err)));
@@ -635,19 +640,17 @@ function makeSuggestions(searchStr: string, version: number, result: SearchResul
       }
 
       if (suggestion == null) {
-        Object.keys(code2ToCode3).every(key => {
+        for (const key of Object.keys(code2ToCode3)) {
           if (longStates[key])
-            return true;
+            continue;
 
           if (($ = new RegExp('(.*)(\\b' + key + ')\\.?$', 'i').exec(searchStr)) || ($ = /(.*)(\bUK)\.?$/i.exec(searchStr))) {
             suggestion = $[1].trim() + ', ' + $[2].trim();
             suggestions.push('E');
 
-            return false;
+            break;
           }
-
-          return true;
-        });
+        }
       }
     }
 
