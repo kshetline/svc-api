@@ -2,7 +2,7 @@ import { Request, Response, Router } from 'express';
 import mime from 'mime';
 
 import { asyncHandler, makePlainASCII_UC, MIN_EXTERNAL_SOURCE, notFoundForEverythingElse, processMillis, toBoolean, toInt, formatVariablePrecision } from './common';
-import { doDataBaseSearch, hasSearchBeenDoneRecently, logSearchResults, pool, updateAtlasDB } from './atlas_database';
+import {doDataBaseSearch, hasSearchBeenDoneRecently, logMessage, logSearchResults, pool, updateAtlasDB} from './atlas_database';
 import { celestialNames, code2ToCode3, code3ToName, initGazetteer, LocationMap, longStates, ParsedSearchString, parseSearchString, roughDistanceBetweenLocationsInKm, states } from './gazetteer';
 import { SearchResult } from './search-result';
 import { AtlasLocation } from './atlas-location';
@@ -159,8 +159,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const log = createCompactLogSummary(result, remoteResults, dbMatches ? dbMatches.size : 0, dbError, startTime,
     client, version, celestial, suggestions);
 
-  // logMessage(log.join(''), noTrace);
-  console.log('Log message:', log);
+  logMessage(log, noTrace);
 
   result.time = processMillis() - startTime;
 

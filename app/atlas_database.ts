@@ -24,12 +24,29 @@ pool.on('connection', connection => {
   connection.query("SET NAMES 'utf8'");
 });
 
-export function logMessage(message: string, noTrace = true): void {
+export function logMessage(message: string, noTrace = false): void {
   svcApiConsole.info(message, noTrace);
+
+  if (!noTrace)
+    logMessageAux(message, false);
 }
 
-export function logWarning(message: string, noTrace = true): void {
+export function logWarning(message: string, noTrace = false): void {
   svcApiConsole.warn(message, noTrace);
+
+  if (!noTrace)
+    logMessageAux(message, true);
+}
+
+function logMessageAux(message: string, asWarning: boolean): void {
+  setTimeout(async () => {
+    try {
+      await pool.queryResults('INSERT INTO atlas_log (warning, message) VALUES (?, ?)', [asWarning, message]);
+    }
+    catch (err) {
+      console.error('Writing to atlas_log failed.');
+    }
+  });
 }
 
 export async function hasSearchBeenDoneRecently(connection: PoolConnection, searchStr: string, extended: boolean): Promise<boolean> {
