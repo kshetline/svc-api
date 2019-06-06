@@ -34,6 +34,28 @@ export function formatVariablePrecision(value: number, maxDecimals = 3) {
   return result;
 }
 
+export function zeroPad(n: number, digits: number): string {
+  let s = n.toString();
+
+  return '0'.repeat(Math.max(0, digits - s.length)) + s;
+}
+
+export function formatDateTime(date: Date | number): string {
+  if (typeof date === 'number')
+    date = new Date(date);
+
+  const y = zeroPad(date.getFullYear(), 4);
+  const M = zeroPad(date.getMonth() + 1, 2);
+  const d = zeroPad(date.getDate(), 2);
+  const h = zeroPad(date.getHours(), 2);
+  const m = zeroPad(date.getMinutes(), 2);
+  const s = zeroPad(date.getSeconds(), 2);
+  const zoneMinutes = date.getTimezoneOffset();
+  const z = (zoneMinutes > 0 ? '-' : '+') + zeroPad(Math.floor(Math.abs(zoneMinutes) / 60), 2) + zeroPad(Math.floor(Math.abs(zoneMinutes) % 60), 2);
+
+  return `${y}-${M}-${d} ${h}:${m}:${s} ${z}`;
+}
+
 export function notFoundForEverythingElse(router: Router) {
   router.get('*', (req: Request, res: Response) => notFound(res));
 }

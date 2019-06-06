@@ -3,7 +3,8 @@ import mime from 'mime';
 
 import { asyncHandler, makePlainASCII_UC, MIN_EXTERNAL_SOURCE, notFoundForEverythingElse, processMillis, toBoolean, toInt, formatVariablePrecision } from './common';
 import {doDataBaseSearch, hasSearchBeenDoneRecently, logMessage, logSearchResults, pool, updateAtlasDB} from './atlas_database';
-import { celestialNames, code2ToCode3, code3ToName, initGazetteer, LocationMap, longStates, ParsedSearchString, parseSearchString, roughDistanceBetweenLocationsInKm, states } from './gazetteer';
+import { celestialNames, code2ToCode3, code3ToName, initGazetteer, LocationMap, longStates, ParsedSearchString, parseSearchString,
+  roughDistanceBetweenLocationsInKm, states } from './gazetteer';
 import { SearchResult } from './search-result';
 import { AtlasLocation } from './atlas-location';
 import { MapClass } from './map-class';

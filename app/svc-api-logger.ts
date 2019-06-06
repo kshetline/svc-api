@@ -4,6 +4,7 @@ import stream, { Writable } from 'stream';
 import { WriteStream } from 'fs';
 import { Request, Response } from 'express';
 import * as util from 'util';
+import {formatDateTime} from './common';
 
 export let svcApiLogStream: Writable | WriteStream = process.stdout;
 
@@ -55,6 +56,10 @@ function argsToString(...args: any[]): string {
   return result + '\n';
 }
 
+export function getLogDate(): string {
+  return formatDateTime(new Date()) + ' - ';
+}
+
 class SvcApiConsole {
   assert(assertion: boolean, ...args: any[]): void {
     if (!assertion) {
@@ -65,22 +70,22 @@ class SvcApiConsole {
 
   // noinspection JSMethodCanBeStatic
   debug(...args: any) {
-    svcApiLogStream.write('DEBUG' + argsToString(...args));
+    svcApiLogStream.write(getLogDate() + 'DEBUG' + argsToString(...args));
   }
 
   // noinspection JSMethodCanBeStatic
   error(...args: any) {
-    svcApiLogStream.write('ERROR' + argsToString(...args));
+    svcApiLogStream.write(getLogDate() + 'ERROR' + argsToString(...args));
   }
 
   // noinspection JSMethodCanBeStatic
   info(...args: any) {
-    svcApiLogStream.write('INFO' + argsToString(...args));
+    svcApiLogStream.write(getLogDate() + 'INFO' + argsToString(...args));
   }
 
   // noinspection JSMethodCanBeStatic
   log(...args: any) {
-    svcApiLogStream.write('LOG' + argsToString(...args));
+    svcApiLogStream.write(getLogDate() + 'LOG' + argsToString(...args));
   }
 
   // noinspection JSMethodCanBeStatic
@@ -97,12 +102,12 @@ class SvcApiConsole {
 
     const lines = stack.split('\n');
 
-    svcApiLogStream.write('TRACE:\n' + lines.splice(2).join('\n'));
+    svcApiLogStream.write(getLogDate() + 'TRACE:\n' + lines.splice(2).join('\n'));
   }
 
   // noinspection JSMethodCanBeStatic
   warn(...args: any) {
-    svcApiLogStream.write('WARN' + argsToString(...args));
+    svcApiLogStream.write(getLogDate() + 'WARN' + argsToString(...args));
   }
 }
 

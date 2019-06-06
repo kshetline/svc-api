@@ -7,14 +7,26 @@ import { router as atlasRouter, initAtlas } from './atlas';
 import { router as stateRouter } from './states';
 import { router as ipToLocationRouter } from './ip-to-location';
 import { initTimeZoneLargeAlt } from 'ks-date-time-zone/dist/ks-timezone-large-alt';
-import { svcApiConsole, svcApiLogStream, svcApiSkipFilter } from './svc-api-logger';
+import {getLogDate, svcApiConsole, svcApiLogStream, svcApiSkipFilter} from './svc-api-logger';
 
 initTimeZoneLargeAlt();
 
 const app: Application = express();
 const port = process.env.PORT || 80;
 
-app.use(morgan('REQ: :remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :response-time ms - :res[content-length]', {
+app.use(morgan((tokens, req, res) => {
+  return [
+    getLogDate().trim(),
+    'REQ:',
+    tokens['remote-addr'](req, res),
+    '"' + tokens.method(req, res),
+    tokens.url(req, res),
+    'HTTP/' + tokens['http-version'](req, res) + '"',
+    tokens.status(req, res),
+    tokens['response-time'](req, res), 'ms -',
+    tokens.res(req, res, 'content-length')
+  ].join(' ');
+}, {
   skip: svcApiSkipFilter,
   stream: svcApiLogStream
 }));
