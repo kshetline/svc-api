@@ -15,10 +15,18 @@ const app: Application = express();
 const port = process.env.PORT || 80;
 
 app.use(morgan((tokens, req, res) => {
+  let ip = tokens['remote-addr'](req, res);
+  // If we're running node as an extension under Apache/nginx, the above IP address will probably
+  // always be localhost. `x-real-ip` should provide the original remote address.
+  const altIp = tokens.req(req, res, 'x-real-ip');
+
+  if (altIp)
+    ip = altIp;
+
   return [
     getLogDate().trim(),
     'REQ:',
-    tokens.req(req, res, 'x-real-ip'), // Instead of `tokens['remote-addr'](req, res)` because we're running Node within Apache/nginx
+    ip,
     '"' + tokens.method(req, res),
     tokens.url(req, res),
     'HTTP/' + tokens['http-version'](req, res) + '"',
