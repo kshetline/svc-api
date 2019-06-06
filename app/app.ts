@@ -18,7 +18,7 @@ app.use(morgan((tokens, req, res) => {
   return [
     getLogDate().trim(),
     'REQ:',
-    tokens['remote-addr'](req, res),
+    tokens.req(req, res, 'x-real-ip'), // Instead of `tokens['remote-addr'](req, res)` because we're running Node within Apache/nginx
     '"' + tokens.method(req, res),
     tokens.url(req, res),
     'HTTP/' + tokens['http-version'](req, res) + '"',

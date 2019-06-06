@@ -25,14 +25,14 @@ pool.on('connection', connection => {
 });
 
 export function logMessage(message: string, noTrace = false): void {
-  svcApiConsole.info(message, noTrace);
+  svcApiConsole.info(message);
 
   if (!noTrace)
     logMessageAux(message, false);
 }
 
 export function logWarning(message: string, noTrace = false): void {
-  svcApiConsole.warn(message, noTrace);
+  svcApiConsole.warn(message);
 
   if (!noTrace)
     logMessageAux(message, true);
