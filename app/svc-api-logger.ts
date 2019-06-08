@@ -4,7 +4,7 @@ import stream, { Writable } from 'stream';
 import { WriteStream } from 'fs';
 import { Request, Response } from 'express';
 import * as util from 'util';
-import {formatDateTime} from './common';
+import { formatDateTime } from 'ks-util';
 
 export let svcApiLogStream: Writable | WriteStream = process.stdout;
 

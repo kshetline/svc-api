@@ -1,7 +1,7 @@
 import { Request, Response, Router } from 'express';
 import mime from 'mime';
 
-import { asyncHandler, makePlainASCII_UC, MIN_EXTERNAL_SOURCE, notFoundForEverythingElse, processMillis, toBoolean, toInt, formatVariablePrecision } from './common';
+import { asyncHandler, MIN_EXTERNAL_SOURCE, notFoundForEverythingElse, processMillis, formatVariablePrecision } from './common';
 import {doDataBaseSearch, hasSearchBeenDoneRecently, logMessage, logSearchResults, pool, updateAtlasDB} from './atlas_database';
 import { celestialNames, code2ToCode3, code3ToName, initGazetteer, LocationMap, longStates, ParsedSearchString, parseSearchString,
   roughDistanceBetweenLocationsInKm, states } from './gazetteer';
@@ -13,6 +13,7 @@ import { initTimezones } from './timezones';
 import { GeoNamesMetrics, geoNamesSearch } from './geo-names-search';
 import { svcApiConsole } from './svc-api-logger';
 import { PoolConnection } from './mysql-await-async';
+import { toInt, toBoolean, makePlainASCII_UC } from 'ks-util';
 
 export const router = Router();
 

@@ -1,8 +1,9 @@
 import { closeMatchForCity, closeMatchForState, containsMatchingLocation, fixRearrangedName, getCode3ForCountry,
   getFlagCode, LocationMap, makeLocationKey, processPlaceNames } from './gazetteer';
-import { getWebPage, processMillis, SOURCE_GETTY_UPDATE, timedPromise, toInt, toNumber } from './common';
+import { getWebPage, processMillis, SOURCE_GETTY_UPDATE, timedPromise } from './common';
 import { AtlasLocation } from './atlas-location';
 import { getTimeZone } from './timezones';
+import { toNumber, toInt } from 'ks-util';
 
 export interface GettyMetrics {
   totalTime: number;

@@ -1,5 +1,5 @@
 import { createReadStream, readdirSync, ReadStream, statSync } from 'fs';
-import { eqci, getWebPage, makePlainASCII_UC } from './common';
+import { eqci, getWebPage } from './common';
 import { AtlasLocation } from './atlas-location';
 import { Html5Entities } from 'html-entities';
 import { MapClass } from './map-class';
@@ -7,6 +7,7 @@ import { logWarning } from './atlas_database';
 import { acos, cos_deg, PI, sin_deg } from 'ks-math';
 import { join as pathJoin } from 'path';
 import { svcApiConsole } from './svc-api-logger';
+import { makePlainASCII_UC } from 'ks-util';
 
 export interface ParsedSearchString {
   targetCity: string;

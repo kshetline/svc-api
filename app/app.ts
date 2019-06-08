@@ -7,7 +7,8 @@ import { router as atlasRouter, initAtlas } from './atlas';
 import { router as stateRouter } from './states';
 import { router as ipToLocationRouter } from './ip-to-location';
 import { initTimeZoneLargeAlt } from 'ks-date-time-zone/dist/ks-timezone-large-alt';
-import {getLogDate, svcApiConsole, svcApiLogStream, svcApiSkipFilter} from './svc-api-logger';
+import { svcApiConsole, svcApiLogStream, svcApiSkipFilter} from './svc-api-logger';
+import { formatDateTime } from 'ks-util';
 
 initTimeZoneLargeAlt();
 
@@ -15,17 +16,13 @@ const app: Application = express();
 const port = process.env.PORT || 80;
 
 app.use(morgan((tokens, req, res) => {
-  let ip = tokens['remote-addr'](req, res);
-  // If we're running node as an extension under Apache/nginx, the above IP address will probably
-  // always be localhost. `x-real-ip` should provide the original remote address.
-  const altIp = tokens.req(req, res, 'x-real-ip');
-
-  if (altIp)
-    ip = altIp;
+  // If we're running node as an extension under Apache/nginx, the above IP address will
+  // probably always be localhost. `x-real-ip` should provide the original remote address.
+  const ip = tokens.req(req, res, 'x-real-ip') || tokens['remote-addr'](req, res);
 
   return [
-    getLogDate().trim(),
-    'REQ:',
+    formatDateTime(),
+    '- REQ:',
     ip,
     '"' + tokens.method(req, res),
     tokens.url(req, res),

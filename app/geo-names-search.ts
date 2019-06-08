@@ -1,8 +1,9 @@
 import { closeMatchForCity, closeMatchForState, code2ToCode3, containsMatchingLocation, getFlagCode, LocationMap,
   makeLocationKey, processPlaceNames, standardizeShortCountyName } from './gazetteer';
 import { getWebPage, processMillis, SOURCE_GEONAMES_GENERAL_UPDATE, SOURCE_GEONAMES_POSTAL_UPDATE,
-  timedPromise, toInt } from './common';
+  timedPromise } from './common';
 import { AtlasLocation } from './atlas-location';
+import { toInt } from 'ks-util';
 
 export interface GeoNamesMetrics {
  retrievalTime: number;

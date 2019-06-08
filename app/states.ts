@@ -1,6 +1,6 @@
 import { Request, Response, Router } from 'express';
 import { getStatesProvincesAndCountries } from './gazetteer';
-import { toBoolean } from './common';
+import { toBoolean } from 'ks-util';
 import mime from 'mime';
 
 export const router = Router();
