@@ -7,6 +7,7 @@ import { router as atlasRouter, initAtlas } from './atlas';
 import { router as stateRouter } from './states';
 import { router as ipToLocationRouter } from './ip-to-location';
 import { router as logRouter } from './log-access';
+import { router as zoneRouter } from './zone-for-location';
 import { initTimeZoneLargeAlt } from 'ks-date-time-zone/dist/ks-timezone-large-alt';
 import { svcApiConsole, svcApiLogStream, svcApiSkipFilter} from './svc-api-logger';
 import { formatDateTime } from 'ks-util';
@@ -19,12 +20,12 @@ const port = process.env.PORT || 80;
 app.use(morgan((tokens, req, res) => {
   // If we're running node as an extension under Apache/nginx, the above IP address will
   // probably always be localhost. `x-real-ip` should provide the original remote address.
-  const ip = tokens.req(req, res, 'x-real-ip') || tokens['remote-addr'](req, res);
+  const remoteAddr = tokens.req(req, res, 'x-real-ip') || tokens['remote-addr'](req, res);
 
   return [
     formatDateTime(),
     '- REQ:',
-    ip,
+    remoteAddr,
     '"' + tokens.method(req, res),
     tokens.url(req, res),
     'HTTP/' + tokens['http-version'](req, res) + '"',
@@ -43,6 +44,8 @@ app.use('/states/', stateRouter);
 app.use('/atlasdb/states/', stateRouter); // Legacy Tomcat path
 app.use('/ip/', ipToLocationRouter);
 app.use('/log/', logRouter);
+app.use('/zoneloc/', zoneRouter);
+app.use('/timeservices/zoneloc/', zoneRouter); // Legacy Tomcat path
 app.use(express.static('../public'));
 // Make the flags folder browsable.
 app.use('/assets/resources/flags/', serveIndex(pathJoin(__dirname, '../../public/assets/resources/flags/')));

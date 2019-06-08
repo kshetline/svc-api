@@ -18,13 +18,10 @@ router.get('/json/*', (req: Request, res: Response) => {
     const now = processMillis();
 
     if (times.length === MAX_PER_MINUTE && times[0] > now - 60000) {
-      if (params.callback) {
-        res.writeHead(200, {'Content-Type': 'text/javascript; charset=utf-8'});
-        res.write(params.callback + '({"message": "busy", "status": "fail"});');
-      } else {
-        res.writeHead(200, {'Content-Type': 'application/json; charset=utf-8'});
-        res.write('{"message": "busy", "status": "fail"}');
-      }
+      if (params.callback)
+        res.jsonp({message: 'busy', status: 'fail'});
+      else
+        res.send({message: 'busy', status: 'fail'});
 
       res.end();
     } else {
