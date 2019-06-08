@@ -6,6 +6,7 @@ import { join as pathJoin } from 'path';
 import { router as atlasRouter, initAtlas } from './atlas';
 import { router as stateRouter } from './states';
 import { router as ipToLocationRouter } from './ip-to-location';
+import { router as logRouter } from './log-access';
 import { initTimeZoneLargeAlt } from 'ks-date-time-zone/dist/ks-timezone-large-alt';
 import { svcApiConsole, svcApiLogStream, svcApiSkipFilter} from './svc-api-logger';
 import { formatDateTime } from 'ks-util';
@@ -41,6 +42,7 @@ app.use('/atlasdb/atlas/', atlasRouter); // Legacy Tomcat path
 app.use('/states/', stateRouter);
 app.use('/atlasdb/states/', stateRouter); // Legacy Tomcat path
 app.use('/ip/', ipToLocationRouter);
+app.use('/log/', logRouter);
 app.use(express.static('../public'));
 // Make the flags folder browsable.
 app.use('/assets/resources/flags/', serveIndex(pathJoin(__dirname, '../../public/assets/resources/flags/')));
