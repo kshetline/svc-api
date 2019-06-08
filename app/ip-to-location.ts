@@ -22,8 +22,6 @@ router.get('/json/*', (req: Request, res: Response) => {
         res.jsonp({message: 'busy', status: 'fail'});
       else
         res.send({message: 'busy', status: 'fail'});
-
-      res.end();
     } else {
       times.push(now);
 

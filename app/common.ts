@@ -3,6 +3,7 @@ import { isNil } from 'lodash';
 import http, { RequestOptions } from 'http';
 import { https } from 'follow-redirects';
 import { parse as parseUrl } from 'url';
+import { createReadStream } from 'fs';
 
 export const MIN_EXTERNAL_SOURCE = 100;
 export const SOURCE_GEONAMES_POSTAL_UPDATE  = 101;
@@ -98,5 +99,26 @@ export async function getWebPage(urlOrOptions: string | RequestOptions, optionsO
       else
         reject(res.statusCode);
     }).on('error', err => reject(err));
+  });
+}
+
+export async function getFileContents(path: string, encoding?: string): Promise<string> {
+  if (!encoding)
+    encoding = 'utf8';
+
+  return new Promise<string>((resolve, reject) => {
+    const input = createReadStream(path, {encoding: encoding});
+    let content = '';
+
+    input.on('error', err => {
+      reject(`Error reading ${path}: ${err.toString()}`);
+    });
+    input.on('data', (data: Buffer) => {
+      content += data.toString(encoding);
+    });
+    input.on('end', () => {
+      input.close();
+      resolve(content);
+    });
   });
 }

@@ -1,5 +1,5 @@
-import { createReadStream, readdirSync, ReadStream, statSync } from 'fs';
-import { eqci, getWebPage } from './common';
+import { readdirSync } from 'fs';
+import { eqci, getFileContents, getWebPage } from './common';
 import { AtlasLocation } from './atlas-location';
 import { Html5Entities } from 'html-entities';
 import { MapClass } from './map-class';
@@ -42,12 +42,6 @@ interface ProcessedNames {
 export class LocationMap extends MapClass<string, AtlasLocation> {}
 
 const entities = new Html5Entities();
-
-function finished(input: ReadStream): Promise<void> {
-  return new Promise<void>(resolve => {
-    input.on('end', () => resolve());
-  });
-}
 
 export const longStates: Record<string, string> = {};
 export const stateAbbreviations: Record<string, string> = {};
@@ -156,80 +150,48 @@ export async function initGazetteer() {
   try {
     await initFlagCodes();
 
-    let path = 'app/data/country_codes.txt';
-    let length = statSync(path).size;
-    let input = createReadStream(path, {encoding: 'utf8', highWaterMark: length});
+    let lines = (await getFileContents('app/data/country_codes.txt', 'utf8')).split(/\r\n|\n|\r/);
 
-    input.on('error', err => svcApiConsole.error('Gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
-    input.on('data', (data: Buffer) => {
-      const lines = data.toString('utf8').split(/\r\n|\n|\r/);
+    lines.forEach(line => {
+      if (line.length >= 75) {
+        const name = line.substr(0, 47).trim();
+        const code2 = line.substr(48, 2).trim();
+        const oldCode2 = line.substr(51, 2).trim();
+        const code3 = line.substr(56, 3);
+        const code3Flag = line.substr(59, 1).trim();
 
-      lines.forEach(line => {
-        if (line.length >= 75) {
-          const name = line.substr(0, 47).trim();
-          const code2 = line.substr(48, 2).trim();
-          const oldCode2 = line.substr(51, 2).trim();
-          const code3 = line.substr(56, 3);
-          const code3Flag = line.substr(59, 1).trim();
+        if (line.length > 76) {
+          const altForm = line.substring(76).trim();
+          const altForms = altForm.split(';');
 
-          if (line.length > 76) {
-            const altForm = line.substring(76).trim();
-            const altForms = altForm.split(';');
-
-            altForms.forEach(alt => {
-              alt = alt.substr(0, 20);
-              altFormToStd[simplify(alt)] = name;
-            });
-          }
-
-          nameToCode3[simplify(name).substr(0, 20)] = code3;
-
-          if (!code3Flag)
-            code3ToName[code3] = name;
-
-          if (code2) {
-            code2ToCode3[code2] = code3;
-            code3ToCode2[code3] = code2;
-          }
-
-          if (oldCode2)
-            new3ToOld2[code3] = oldCode2;
+          altForms.forEach(alt => {
+            alt = alt.substr(0, 20);
+            altFormToStd[simplify(alt)] = name;
+          });
         }
-      });
+
+        nameToCode3[simplify(name).substr(0, 20)] = code3;
+
+        if (!code3Flag)
+          code3ToName[code3] = name;
+
+        if (code2) {
+          code2ToCode3[code2] = code3;
+          code3ToCode2[code3] = code2;
+        }
+
+        if (oldCode2)
+          new3ToOld2[code3] = oldCode2;
+      }
     });
 
-    await finished(input);
-    input.close();
+    lines = (await getFileContents('app/data/us_counties.txt', 'utf8')).split(/\r\n|\n|\r/);
+    lines.forEach(line => usCounties.add(line.trim()));
+    // Add this fake county to suppress errors when DC is reported at the county level of a place hierarchy.
+    usCounties.add('Washington, DC');
 
-    path = 'app/data/us_counties.txt';
-    length = statSync(path).size;
-    input = createReadStream(path, {encoding: 'utf8', highWaterMark: length});
-
-    input.on('error', err => svcApiConsole.error('Gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
-    input.on('data', (data: Buffer) => {
-      const lines = data.toString('utf8').split(/\r\n|\n|\r/);
-
-      lines.forEach(line => usCounties.add(line.trim()));
-      // Add this fake county to suppress errors when DC is reported at the county level of a place hierarchy.
-      usCounties.add('Washington, DC');
-    });
-
-    await finished(input);
-    input.close();
-
-    path = 'app/data/celestial.txt';
-    length = statSync(path).size;
-    input = createReadStream(path, {encoding: 'utf8', highWaterMark: length});
-
-    input.on('error', err => svcApiConsole.error('Gazetteer init error: ' + err.toString().replace(/^error:\s+/i, '')));
-    input.on('data', (data: Buffer) => {
-      const lines = data.toString('utf8').split(/\r\n|\n|\r/);
-
-      lines.forEach(line => celestialNames.add(makePlainASCII_UC(line.trim())));
-    });
-
-    await finished(input);
-    input.close();
+    lines = (await getFileContents('app/data/celestial.txt', 'utf8')).split(/\r\n|\n|\r/);
+    lines.forEach(line => celestialNames.add(makePlainASCII_UC(line.trim())));
   }
   catch (err) {
     svcApiConsole.error('Gazetteer init error: ' + err);
