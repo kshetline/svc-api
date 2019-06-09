@@ -21,6 +21,8 @@ router.get('/', (req: Request, res: Response) => {
     response.push('');
     res.send(response.join('\n'));
   }
+  else if (req.query.callback)
+    res.jsonp(response);
   else
     res.send(response);
 });
