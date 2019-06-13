@@ -8,6 +8,7 @@ import { router as stateRouter } from './states';
 import { router as ipToLocationRouter } from './ip-to-location';
 import { router as logRouter } from './log-access';
 import { router as zoneRouter } from './zone-for-location';
+import { router as mapsRouter } from './maps-api';
 import { initTimeZoneLargeAlt } from 'ks-date-time-zone/dist/ks-timezone-large-alt';
 import { svcApiConsole, svcApiLogStream, svcApiSkipFilter} from './svc-api-logger';
 import { formatDateTime } from 'ks-util';
@@ -46,6 +47,7 @@ app.use('/ip/', ipToLocationRouter);
 app.use('/log/', logRouter);
 app.use('/zoneloc/', zoneRouter);
 app.use('/timeservices/zoneloc/', zoneRouter); // Legacy Tomcat path
+app.use('/maps/', mapsRouter);
 app.use(express.static('../public'));
 // Make the flags folder browsable.
 app.use('/assets/resources/flags/', serveIndex(pathJoin(__dirname, '../../public/assets/resources/flags/')));
