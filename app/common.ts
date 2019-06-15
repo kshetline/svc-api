@@ -1,9 +1,11 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import { isNil } from 'lodash';
 import http, { RequestOptions } from 'http';
+import zlib from 'zlib';
 import { https } from 'follow-redirects';
 import { parse as parseUrl } from 'url';
 import { createReadStream } from 'fs';
+import iconv from 'iconv-lite';
 
 export const MIN_EXTERNAL_SOURCE = 100;
 export const SOURCE_GEONAMES_POSTAL_UPDATE  = 101;
@@ -77,6 +79,13 @@ export async function getWebPage(urlOrOptions: string | RequestOptions, optionsO
     else
       options = optionsOrEncoding;
   }
+  else if (!options)
+    options = urlOrOptions as RequestOptions;
+
+  if (!options.headers)
+    options.headers = {'accept-encoding': 'gzip, deflate, br'};
+  else if (!options.headers['accept-encoding'])
+    options.headers['accept-encoding'] = 'gzip, deflate, br';
 
   if (!encoding)
     encoding = 'utf8';
@@ -88,11 +97,56 @@ export async function getWebPage(urlOrOptions: string | RequestOptions, optionsO
       let content = '';
 
       if (res.statusCode === 200) {
-        res.on('data', (data: Buffer) => {
-          content += data.toString(encoding);
+        let source = res as any;
+        const contentEncoding = res.headers['content-encoding'];
+        let charset = (res.headers['content-type'] || '').toLowerCase();
+        let usingIconv = false;
+        const $ = /\bcharset\s*=\s*['"]?\s*([\w\-]+)\b/.exec(charset);
+
+        if ($)
+          charset = $[1] === 'utf-8' ? 'utf8' : $[1];
+        else
+          charset = encoding;
+
+        if (contentEncoding === 'gzip') {
+          source = zlib.createGunzip();
+          res.pipe(source);
+        }
+        else if (contentEncoding === 'deflate') {
+          source = zlib.createInflate();
+          res.pipe(source);
+        }
+        else if (contentEncoding === 'br') {
+          source = zlib.createBrotliDecompress();
+          res.pipe(source);
+        }
+        else if (contentEncoding && contentEncoding !== 'identity') {
+          reject(415); // Unsupported Media Type
+          return;
+        }
+
+        if (!/^(ascii|utf8|utf16le|ucs2|base64|binary|hex)$/.test(charset)) {
+          if (!iconv.encodingExists(charset)) {
+            reject(415); // Unsupported Media Type
+            return;
+          }
+
+          const prevSource = source;
+          source = iconv.decodeStream(charset);
+          prevSource.pipe(source);
+          usingIconv = true;
+        }
+
+        console.log(charset, contentEncoding);
+
+        source.on('data', (data: Buffer) => {
+          if (usingIconv)
+            content += data.toString();
+          else
+            content += data.toString(charset);
         });
 
-        res.on('end', () => {
+        source.on('end', () => {
           resolve(content);
         });
       }
@@ -121,4 +175,8 @@ export async function getFileContents(path: string, encoding?: string): Promise<
       resolve(content);
     });
   });
+}
+
+export function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

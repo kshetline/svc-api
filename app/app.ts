@@ -12,6 +12,7 @@ import { router as mapsRouter } from './maps-api';
 import { initTimeZoneLargeAlt } from 'ks-date-time-zone/dist/ks-timezone-large-alt';
 import { svcApiConsole, svcApiLogStream, svcApiSkipFilter} from './svc-api-logger';
 import { formatDateTime } from 'ks-util';
+import { getPublicIp } from './public-ip';
 
 initTimeZoneLargeAlt();
 
@@ -61,6 +62,7 @@ app.get('/', (req: Request, res: Response) => {
 
     app.listen(port, () => {
       svcApiConsole.log(`Sky View Café listening on port ${port}.`);
+      getPublicIp();
     });
   }
   catch (err) {
