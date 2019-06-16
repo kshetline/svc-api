@@ -137,8 +137,6 @@ export async function getWebPage(urlOrOptions: string | RequestOptions, optionsO
           usingIconv = true;
         }
 
-        console.log(charset, contentEncoding);
-
         source.on('data', (data: Buffer) => {
           if (usingIconv)
             content += data.toString();

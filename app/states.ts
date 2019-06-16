@@ -1,7 +1,6 @@
 import { Request, Response, Router } from 'express';
 import { getStatesProvincesAndCountries } from './gazetteer';
 import { toBoolean } from 'ks-util';
-import mime from 'mime';
 
 export const router = Router();
 
@@ -17,7 +16,7 @@ router.get('/', (req: Request, res: Response) => {
   }));
 
   if (plainText) {
-    res.set('Content-Type', mime.getType('.txt'));
+    res.set('Content-Type', 'text/plain');
     response.push('');
     res.send(response.join('\n'));
   }

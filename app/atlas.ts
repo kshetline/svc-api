@@ -1,5 +1,4 @@
 import { Request, Response, Router } from 'express';
-import mime from 'mime';
 
 import { asyncHandler, MIN_EXTERNAL_SOURCE, notFoundForEverythingElse, processMillis, formatVariablePrecision } from './common';
 import {doDataBaseSearch, hasSearchBeenDoneRecently, logMessage, logSearchResults, pool, updateAtlasDB} from './atlas_database';
@@ -166,7 +165,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   result.time = processMillis() - startTime;
 
   if (plainText) {
-    res.set('Content-Type', mime.getType('.txt'));
+    res.set('Content-Type', 'text/plain');
     res.send(result.toPlainText());
   }
   else if (callback)

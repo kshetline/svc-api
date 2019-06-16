@@ -1,7 +1,6 @@
 import { Request, Response, Router } from 'express';
 import auth from 'basic-auth';
 import { existsSync } from 'fs';
-import mime from 'mime';
 import { join as pathJoin } from 'path';
 import { asyncHandler, getFileContents } from './common';
 
@@ -16,7 +15,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  res.set('Content-Type', mime.getType('.txt'));
+  res.set('Content-Type', 'text/plain');
 
   if (process.env.SVC_API_LOG) {
     const path = pathJoin(__dirname, process.env.SVC_API_LOG);
