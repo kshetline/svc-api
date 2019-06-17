@@ -44,7 +44,8 @@ if (process.env.SVC_API_LOG) {
 
 // Only log requests that are for SVC API calls, not for static files pulled from the "public" folder.
 export function svcApiSkipFilter(req: Request, res: Response): boolean {
-  return !/^\/?(atlas|atlasdb|ip|maps|states|timeservices|zoneloc)(\/|\?|$)/.test(req.baseUrl);
+  return !(/^\/?(atlas|atlasdb|ip|states|timeservices|zoneloc)(\/|\?|$)/.test(req.baseUrl) ||
+    req.baseUrl === '/maps' && /^\/ping(\/|$)/.test(req.url));
 }
 
 function argsToString(...args: any[]): string {

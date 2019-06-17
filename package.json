@@ -1,6 +1,6 @@
 {
   "name": "svc-api",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "description": "SVC API",
   "main": "index.js",
   "scripts": {

@@ -66,23 +66,6 @@ const authorizedIps: Record<string, number> = {};
 const ALLOWED_IP_AGE = 7200000; // two hours
 const MAX_AUTHORIZATION_DELAY = 30000; // half minute
 
-// TODO: Remove the '/' route below once enough time has passed to switch over to the new '/script/' route.
-router.get('/', (req: Request, res: Response) => {
-  const url = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&callback=initGoogleMaps`;
-  const options = parseUrl(url);
-
-  const proxy = https.request(options, function (res2) {
-    res.writeHead(res2.statusCode, res2.headers);
-    res2.pipe(res, {
-      end: true
-    });
-  });
-
-  req.pipe(proxy, {
-    end: true
-  });
-});
-
 router.get('/script/', asyncHandler(async (req: Request, res: Response) => {
   const url = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&callback=initGoogleMaps`;
   let script = await getWebPage(url);
@@ -109,6 +92,8 @@ router.get('/proxy*', asyncHandler(async (req: Request, res: Response) => {
     notFound(res);
     return;
   }
+
+  maintainAuthorizedIps();
 
   url = url.replace(new RegExp(escapeRegExp(fakeApiKey), 'g'), GOOGLE_API_KEY);
 
