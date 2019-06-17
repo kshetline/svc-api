@@ -11,7 +11,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
   if (!user || !process.env.DB_PWD || user.name !== 'admin' || user.pass !== process.env.DB_PWD) {
     res.set('WWW-Authenticate', 'Basic realm="skyviewcafe.com"');
-    res.status(401).send();
+    res.status(401).send('Not authorized');
     return;
   }
 

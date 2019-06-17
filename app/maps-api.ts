@@ -96,9 +96,7 @@ router.get('/script/', asyncHandler(async (req: Request, res: Response) => {
 
 router.get('/proxy*', asyncHandler(async (req: Request, res: Response) => {
   if (!(await isAuthorized(req))) {
-    res.writeHead(403, {'Content-Type': 'text/plain; charset=utf-8'});
-    res.write('Not authorized');
-    res.end();
+    res.status(401).send('Not authorized');
     return;
   }
 

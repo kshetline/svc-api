@@ -13,9 +13,7 @@ export const SOURCE_GEONAMES_GENERAL_UPDATE = 103;
 export const SOURCE_GETTY_UPDATE = 104;
 
 export function notFound(res: Response): void {
-  res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'});
-  res.write('Not found');
-  res.end();
+  res.status(403).send('Not found');
 }
 
 export function processMillis(): number {
