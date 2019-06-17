@@ -9,7 +9,7 @@ export const router = Router();
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 let fakeApiKey = GOOGLE_API_KEY;
-const scramble = 'LX-IlYd0@RQsij6eCO3cxFhk5bpNMq1a2SrPoV_9Et7mAywGfBnuJvWzHTg8DKU4';
+const scramble = 'LX-IlYd0ZRQsij6eCO3cxFhk5bpNMq1a2SrPoV_9Et7mAywGfBnuJvWzHTg8DKU4';
 
 if (GOOGLE_API_KEY && GOOGLE_API_KEY.length > 3) {
   fakeApiKey = GOOGLE_API_KEY.substr(0, 3);
