@@ -139,7 +139,7 @@ router.get('/ping/', (req: Request, res: Response) => {
   if (remoteAddr)
     authorizedIps[remoteAddr] = processMillis();
 
-  res.send('ok');
+  res.send('"ok"');
   maintainAuthorizedIps();
 });
 
