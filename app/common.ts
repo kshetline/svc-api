@@ -178,3 +178,7 @@ export async function getFileContents(path: string, encoding?: string): Promise<
 export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+export function getRemoteAddress(req: Request): string {
+  return (req.headers['x-real-ip'] as string) || req.connection.remoteAddress;
+}

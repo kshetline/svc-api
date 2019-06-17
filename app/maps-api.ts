@@ -1,7 +1,8 @@
 import { Request, Response, Router } from 'express';
 import https from 'https';
 import { parse as parseUrl } from 'url';
-import { asyncHandler, escapeRegExp, getWebPage, notFound, notFoundForEverythingElse } from './common';
+import { asyncHandler, escapeRegExp, getRemoteAddress, getWebPage, notFound, notFoundForEverythingElse,
+  processMillis } from './common';
 import { getPublicIp } from './public-ip';
 
 export const router = Router();
@@ -61,6 +62,10 @@ function setSvcMapsApiKey(k) {
   return window.svcModKey;
 }`.replace(/\n+/g, ' ').replace(/ +/g, ' ').replace(/(\W) (?=\w)/g, '$1').replace(/(.) (?=\W)/g, '$1').trim();
 
+const authorizedIps: Record<string, number> = {};
+const ALLOWED_IP_AGE = 7200000; // two hours
+const MAX_AUTHORIZATION_DELAY = 30000; // half minute
+
 // TODO: Remove the '/' route below once enough time has passed to switch over to the new '/script/' route.
 router.get('/', (req: Request, res: Response) => {
   const url = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&callback=initGoogleMaps`;
@@ -90,6 +95,13 @@ router.get('/script/', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 router.get('/proxy*', asyncHandler(async (req: Request, res: Response) => {
+  if (!(await isAuthorized(req))) {
+    res.writeHead(403, {'Content-Type': 'text/plain; charset=utf-8'});
+    res.write('Not authorized');
+    res.end();
+    return;
+  }
+
   let url = req.originalUrl;
   const $ = /^\/maps\/proxy(.*)$/.exec(url);
 
@@ -122,5 +134,48 @@ router.get('/proxy*', asyncHandler(async (req: Request, res: Response) => {
     end: true
   });
 }));
+
+router.get('/ping/', (req: Request, res: Response) => {
+  const remoteAddr = getRemoteAddress(req);
+
+  if (remoteAddr)
+    authorizedIps[remoteAddr] = processMillis();
+
+  res.send('ok');
+  maintainAuthorizedIps();
+});
+
+async function isAuthorized(req: Request): Promise<boolean> {
+  const remoteAddr = getRemoteAddress(req);
+
+  if (authorizedIps[remoteAddr])
+    return Promise.resolve(true);
+
+  return new Promise(resolve => {
+    const start = processMillis();
+    const checkInterval = setInterval(() => {
+      if (authorizedIps[remoteAddr]) {
+        clearInterval(checkInterval);
+        resolve(true);
+      }
+      else if (processMillis() > start + MAX_AUTHORIZATION_DELAY) {
+        clearInterval(checkInterval);
+        resolve(false);
+      }
+    }, 50);
+  });
+}
+
+function maintainAuthorizedIps(): void {
+  const now = processMillis();
+  const ips = Object.keys(authorizedIps);
+
+  ips.forEach(ip => {
+    const time = authorizedIps[ip];
+
+    if (now > time + ALLOWED_IP_AGE)
+      delete authorizedIps[ip];
+  });
+}
 
 notFoundForEverythingElse(router);
