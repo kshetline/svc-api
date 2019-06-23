@@ -125,7 +125,11 @@ router.get('/ping/', (req: Request, res: Response) => {
   if (remoteAddr)
     authorizedIps[remoteAddr] = processMillis();
 
-  res.send('"ok"');
+  if (req.query.callback)
+    res.jsonp('ok');
+  else
+    res.json('ok');
+
   maintainAuthorizedIps();
 });
 
