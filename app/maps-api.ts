@@ -1,9 +1,10 @@
 import { Request, Response, Router } from 'express';
 import https from 'https';
 import { parse as parseUrl } from 'url';
-import { asyncHandler, escapeRegExp, getRemoteAddress, getWebPage, notFound, notFoundForEverythingElse,
+import { asyncHandler, escapeRegExp, getRemoteAddress, notFound, notFoundForEverythingElse,
   processMillis } from './common';
 import { getPublicIp } from './public-ip';
+import { requestText } from 'by-request';
 
 export const router = Router();
 
@@ -68,7 +69,7 @@ const MAX_AUTHORIZATION_DELAY = 30000; // half minute
 
 router.get('/script/', asyncHandler(async (req: Request, res: Response) => {
   const url = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&callback=initGoogleMaps`;
-  let script = await getWebPage(url);
+  let script = await requestText(url);
 
   script = script.replace(new RegExp(`['"]${GOOGLE_API_KEY}['"]`, 'g'), `setSvcMapsApiKey('${fakeApiKey}')`).trim();
   script += '\n' + ADDED_CLIENT_MAPS_SCRIPT;

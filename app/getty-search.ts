@@ -1,9 +1,10 @@
 import { closeMatchForCity, closeMatchForState, containsMatchingLocation, fixRearrangedName, getCode3ForCountry,
   getFlagCode, LocationMap, makeLocationKey, processPlaceNames } from './gazetteer';
-import { getWebPage, processMillis, SOURCE_GETTY_UPDATE, timedPromise } from './common';
+import { processMillis, SOURCE_GETTY_UPDATE, timedPromise } from './common';
 import { AtlasLocation } from './atlas-location';
 import { getTimeZone } from './timezones';
 import { toNumber, toInt } from 'ks-util';
+import { requestText } from 'by-request';
 
 export interface GettyMetrics {
   totalTime: number;
@@ -45,7 +46,7 @@ async function gettySearchAux(targetCity: string, targetState: string, metrics: 
     let lines: string[];
 
     try {
-      lines = (await getWebPage(url, options)).split(/\r\n|\n|\r/);
+      lines = (await requestText(url, options)).split(/\r\n|\n|\r/);
     }
     catch (err) {
       throw new Error('Getty secondary error: ' + err);
@@ -165,7 +166,7 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
     let lines: string[];
 
     try {
-      lines = (await getWebPage(url, options)).split(/\r\n|\n|\r/);
+      lines = (await requestText(url, options)).split(/\r\n|\n|\r/);
     }
     catch (err) {
       throw new Error('Getty preliminary error: ' + err);

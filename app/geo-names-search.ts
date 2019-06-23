@@ -1,9 +1,10 @@
 import { closeMatchForCity, closeMatchForState, code2ToCode3, containsMatchingLocation, getFlagCode, LocationMap,
   makeLocationKey, processPlaceNames, standardizeShortCountyName } from './gazetteer';
-import { getWebPage, processMillis, SOURCE_GEONAMES_GENERAL_UPDATE, SOURCE_GEONAMES_POSTAL_UPDATE,
+import { processMillis, SOURCE_GEONAMES_GENERAL_UPDATE, SOURCE_GEONAMES_POSTAL_UPDATE,
   timedPromise } from './common';
 import { AtlasLocation } from './atlas-location';
 import { toInt } from 'ks-util';
+import { requestJson } from 'by-request';
 
 export interface GeoNamesMetrics {
  retrievalTime: number;
@@ -47,7 +48,7 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
   let results: any;
 
   try {
-    results = JSON.parse(await getWebPage(url, options));
+    results = await requestJson(url, options);
   }
   catch (err) {
     throw new Error('GeoNames error: ' + err);

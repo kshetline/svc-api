@@ -1,5 +1,5 @@
 import { readdirSync } from 'fs';
-import { eqci, getFileContents, getWebPage } from './common';
+import { eqci, getFileContents } from './common';
 import { AtlasLocation } from './atlas-location';
 import { Html5Entities } from 'html-entities';
 import { MapClass } from './map-class';
@@ -8,6 +8,7 @@ import { acos, cos_deg, PI, sin_deg } from 'ks-math';
 import { join as pathJoin } from 'path';
 import { svcApiConsole } from './svc-api-logger';
 import { makePlainASCII_UC } from 'ks-util';
+import { requestText } from 'by-request';
 
 export interface ParsedSearchString {
   targetCity: string;
@@ -218,7 +219,7 @@ async function initFlagCodes() {
   catch (err) { /* Ignore error, proceed to remote retrieval. */}
 
   try {
-    const lines = (await getWebPage('https://skyviewcafe.com/assets/resources/flags/')).split(/\r\n|\n|\r/);
+    const lines = (await requestText('https://skyviewcafe.com/assets/resources/flags/')).split(/\r\n|\n|\r/);
 
     lines.forEach(line => {
       const $ = />(\w+)\.png</.exec(line);
