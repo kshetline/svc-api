@@ -1,9 +1,11 @@
 import { Request, Response, Router } from 'express';
 
 import { asyncHandler, MIN_EXTERNAL_SOURCE, notFoundForEverythingElse, processMillis, formatVariablePrecision } from './common';
-import {doDataBaseSearch, hasSearchBeenDoneRecently, logMessage, logSearchResults, pool, updateAtlasDB} from './atlas_database';
-import { celestialNames, code2ToCode3, code3ToName, initGazetteer, LocationMap, longStates, ParsedSearchString, parseSearchString,
-  roughDistanceBetweenLocationsInKm, states } from './gazetteer';
+import { doDataBaseSearch, hasSearchBeenDoneRecently, logMessage, logSearchResults, pool, updateAtlasDB } from './atlas_database';
+import {
+  celestialNames, code2ToCode3, code3ToName, initGazetteer, LocationMap, longStates, ParsedSearchString, parseSearchString,
+  roughDistanceBetweenLocationsInKm, states
+} from './gazetteer';
 import { SearchResult } from './search-result';
 import { AtlasLocation } from './atlas-location';
 import { MapClass } from './map-class';
@@ -18,7 +20,7 @@ export const router = Router();
 
 type RemoteMode = 'skip' | 'normal' | 'extend' | 'forced' | 'only' | 'geonames' | 'getty';
 
-class LocationArrayMap extends MapClass<string, AtlasLocation[]> {}
+class LocationArrayMap extends MapClass<string, AtlasLocation[]> { }
 
 interface RemoteSearchResults {
   geoNamesMatches: LocationMap;
@@ -81,8 +83,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const connection = await pool.getConnection();
 
     if (/forced|only|geonames|getty/i.test(remoteMode) ||
-        (remoteMode !== 'skip' && !(await hasSearchBeenDoneRecently(connection, parsed.normalizedSearch, extend))))
-    {
+      (remoteMode !== 'skip' && !(await hasSearchBeenDoneRecently(connection, parsed.normalizedSearch, extend)))) {
       consultRemoteData = true;
     }
 
@@ -234,10 +235,10 @@ function eliminateDuplicatesAndSort(mergedMatches: LocationArrayMap, limit: numb
         const state2      = location2.state;
         const latitude2   = location2.latitude;
         const longitude2  = location2.longitude;
-        let zone2       = location2.zone;
+        let zone2         = location2.zone;
         const zip2        = location2.zip;
         const rank2       = location2.rank;
-        let placeType2  = location2.placeType;
+        let placeType2    = location2.placeType;
         const source2     = location2.source;
         const geonameID2  = location2.geonameID;
 
@@ -395,10 +396,10 @@ async function remoteSourcesSearch(parsed: ParsedSearchString, doGeonames: boole
   if (doGeonames) {
     results.geoNamesMetrics = {} as GeoNamesMetrics;
     geoNamesIndex = nextIndex++;
-    promises.push(geoNamesSearch(parsed.targetCity, parsed.targetState, parsed.doZip, results.geoNamesMetrics, noTrace));
+    promises.push(geoNamesSearch(parsed.targetCity, parsed.targetState, parsed.postalCode, results.geoNamesMetrics, noTrace));
   }
 
-  if (doGetty && !parsed.doZip) {
+  if (doGetty && !parsed.postalCode) {
     results.gettyMetrics = {} as GettyMetrics;
     gettyIndex = nextIndex /* ++ */; // TODO: Put back trailing ++ if another remote source is added.
     promises.push(gettySearch(parsed.targetCity, parsed.targetState, results.gettyMetrics, noTrace));
@@ -481,7 +482,7 @@ ${preliminaryTime}s, retrieval time: ${retrievalTime}s.`);
   if (version > 2) {
     celestial = checkCelestial(parsed.targetCity, result, svc);
 
-    if (!result.count && !parsed.doZip)
+    if (!result.count && !parsed.postalCode)
       suggestions = makeSuggestions(parsed.actualSearch, version, result, svc, client);
   }
 
@@ -591,7 +592,7 @@ function createCompactLogSummary(result: SearchResult, remoteResults: RemoteSear
 }
 
 function checkCelestial(targetCity: string, result: SearchResult, svc: boolean): boolean {
-  if (celestialNames.has(makePlainASCII_UC(targetCity))) {
+  if (targetCity && celestialNames.has(makePlainASCII_UC(targetCity))) {
     result.appendWarningLine('This search is for geographic locations only.');
 
     if (svc) {

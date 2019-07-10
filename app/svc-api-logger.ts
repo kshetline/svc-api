@@ -11,9 +11,10 @@ export let svcApiLogStream: Writable | WriteStream = process.stdout;
 if (process.env.SVC_API_LOG) {
   const logPath = pathJoin(__dirname, process.env.SVC_API_LOG);
   const fileStream = rfs(logPath, {
-    size: '1M',
+    maxSize: '256K',
     interval: '7d',
-    maxFiles: 10
+    maxFiles: 10,
+    rotationTime: true
   });
 
   svcApiLogStream = new stream.Writable();

@@ -10,7 +10,7 @@ import { router as logRouter } from './log-access';
 import { router as zoneRouter } from './zone-for-location';
 import { router as mapsRouter } from './maps-api';
 import { initTimeZoneLargeAlt } from 'ks-date-time-zone/dist/ks-timezone-large-alt';
-import { svcApiConsole, svcApiLogStream, svcApiSkipFilter} from './svc-api-logger';
+import { svcApiConsole, svcApiLogStream, svcApiSkipFilter } from './svc-api-logger';
 import { formatDateTime } from 'ks-util';
 import { getPublicIp } from './public-ip';
 
@@ -36,9 +36,9 @@ app.use(morgan((tokens, req, res) => {
     tokens.res(req, res, 'content-length')
   ].join(' ');
 }, {
-  skip: svcApiSkipFilter,
-  stream: svcApiLogStream
-}));
+    skip: svcApiSkipFilter,
+    stream: svcApiLogStream
+  }));
 
 app.use('/atlas/', atlasRouter);
 app.use('/atlasdb/atlas/', atlasRouter); // Legacy Tomcat path

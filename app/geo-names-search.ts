@@ -1,25 +1,29 @@
-import { closeMatchForCity, closeMatchForState, code2ToCode3, containsMatchingLocation, getFlagCode, LocationMap,
-  makeLocationKey, processPlaceNames, standardizeShortCountyName } from './gazetteer';
-import { processMillis, SOURCE_GEONAMES_GENERAL_UPDATE, SOURCE_GEONAMES_POSTAL_UPDATE,
-  timedPromise } from './common';
+import {
+  closeMatchForCity, closeMatchForState, code2ToCode3, containsMatchingLocation, getFlagCode, LocationMap,
+  makeLocationKey, processPlaceNames, standardizeShortCountyName
+} from './gazetteer';
+import {
+  processMillis, SOURCE_GEONAMES_GENERAL_UPDATE, SOURCE_GEONAMES_POSTAL_UPDATE,
+  timedPromise
+} from './common';
 import { AtlasLocation } from './atlas-location';
 import { toInt } from 'ks-util';
 import { requestJson } from 'by-request';
 
 export interface GeoNamesMetrics {
- retrievalTime: number;
- rawCount: number;
- matchedCount: number;
+  retrievalTime: number;
+  rawCount: number;
+  matchedCount: number;
 }
 
 const MAX_TIME_GEONAMES = 20; // seconds
 const FAKE_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:66.0) Gecko/20100101 Firefox/66.0';
 
-export async function geoNamesSearch(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, noTrace: boolean): Promise<LocationMap> {
-  return timedPromise(geoNamesSearchAux(targetCity, targetState, doZip, metrics, noTrace), MAX_TIME_GEONAMES * 1000, 'GeoNames search timed out');
+export async function geoNamesSearch(targetCity: string, targetState: string, postalCode: string, metrics: GeoNamesMetrics, noTrace: boolean): Promise<LocationMap> {
+  return timedPromise(geoNamesSearchAux(targetCity, targetState, postalCode, metrics, noTrace), MAX_TIME_GEONAMES * 1000, 'GeoNames search timed out');
 }
 
-async function geoNamesSearchAux(targetCity: string, targetState: string, doZip: boolean, metrics: GeoNamesMetrics, noTrace: boolean): Promise<LocationMap> {
+async function geoNamesSearchAux(targetCity: string, targetState: string, postalCode: string, metrics: GeoNamesMetrics, noTrace: boolean): Promise<LocationMap> {
   const startTime = processMillis();
   const keyedPlaces = new LocationMap();
 
@@ -27,9 +31,9 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
   metrics = metrics ? metrics : {} as GeoNamesMetrics;
   metrics.matchedCount = 0;
 
-  let url = `http://api.geonames.org/${doZip ? 'postalCodeSearchJSON' : 'searchJSON'}?username=skyview&style=full`;
+  let url = `http://api.geonames.org/${postalCode ? 'postalCodeSearchJSON' : 'searchJSON'}?username=skyview&style=full`;
 
-  if (doZip)
+  if (postalCode)
     url += '&postalcode=';
   else {
     url += '&isNameRequired=true'
@@ -41,10 +45,10 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
          + '&name_startsWith=';
   }
 
-  url += encodeURIComponent(targetCity);
+  url += encodeURIComponent(postalCode || targetCity);
 
   let geonames: any[];
-  const options = {headers: {'User-Agent': FAKE_USER_AGENT}};
+  const options = { headers: { 'User-Agent': FAKE_USER_AGENT } };
   let results: any;
 
   try {
@@ -55,9 +59,9 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
   }
 
   if (results) {
-    if (!doZip && results.totalResultsCount > 0 && Array.isArray(results.geonames))
+    if (!postalCode && results.totalResultsCount > 0 && Array.isArray(results.geonames))
       geonames = results.geonames;
-    else if (doZip && Array.isArray(results.postalCodes))
+    else if (postalCode && Array.isArray(results.postalCodes))
       geonames = results.postalCodes;
   }
 
@@ -65,12 +69,12 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
     metrics.rawCount = geonames.length;
 
     for (const geoname of geonames) {
-      const city: string = doZip ? geoname.placeName : geoname.name;
+      const city: string = postalCode ? geoname.placeName : geoname.name;
       let county: string = geoname.adminName2;
       let state: string;
       let country: string = geoname.countryCode;
       const continent: string = geoname.continentCode;
-      const placeType = (doZip ? 'P.PPL' : geoname.fcl + '.' + geoname.fcode);
+      const placeType = (postalCode ? 'P.PPL' : geoname.fcl + '.' + geoname.fcode);
 
       if (continent === 'AN')
         country = 'ATA';
@@ -90,9 +94,8 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
       if (!names)
         continue;
 
-      if ((doZip || closeMatchForCity(targetCity, names.city) || closeMatchForCity(targetCity, names.variant)) &&
-           closeMatchForState(targetState, state, country))
-      {
+      if ((postalCode || closeMatchForCity(targetCity, names.city) || closeMatchForCity(targetCity, names.variant)) &&
+           closeMatchForState(targetState, state, country)) {
         const location = new AtlasLocation();
         const population = toInt(geoname.population);
         let rank = 0;
@@ -118,9 +121,9 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, doZip:
         location.latitude = geoname.lat;
         location.longitude = geoname.lng;
         location.zone = geoname.timezone && geoname.timezone.timeZoneId;
-        location.zip = (doZip ? geoname.postalcode : undefined);
+        location.zip = (postalCode ? geoname.postalcode : undefined);
         location.variant = names.variant;
-        location.source = (doZip ? SOURCE_GEONAMES_POSTAL_UPDATE : SOURCE_GEONAMES_GENERAL_UPDATE);
+        location.source = (postalCode ? SOURCE_GEONAMES_POSTAL_UPDATE : SOURCE_GEONAMES_GENERAL_UPDATE);
         location.geonameID = geoname.geonameId;
 
         if (!containsMatchingLocation(keyedPlaces, location)) {
