@@ -1,7 +1,7 @@
 import { Pool, PoolConnection } from './mysql-await-async';
 import {
   closeMatchForState, code3ToName, countyStateCleanUp, getFlagCode, LocationMap, makeLocationKey,
-  ParsedSearchString, roughDistanceBetweenLocationsInKm, simplify
+  ParsedSearchString, roughDistanceBetweenLocationsInKm, simplify, closeMatchForCity
 } from './gazetteer';
 import { AtlasLocation } from './atlas-location';
 import { MIN_EXTERNAL_SOURCE } from './common';
@@ -173,9 +173,9 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
           break;
       }
 
-      const results = await connection.queryResults(query, values);
+      const results = (await connection.queryResults(query, values)) || [];
 
-      for (const result of (results ? results : [])) {
+      for (const result of results) {
         const itemNo = result.item_no;
 
         if (examined.has(itemNo))
@@ -205,8 +205,16 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
         if (altName)
           city = altName;
 
-        if (parsed.postalCode)
+        if (parsed.postalCode) {
           rank = ZIP_RANK;
+
+          if (results.length > 1) {
+            rank += parsed.targetCity && closeMatchForCity(parsed.targetCity, city) ? 2 : 0;
+            rank += parsed.targetCity && closeMatchForState(parsed.targetCity, state, country) ? 1 : 0;
+            rank += parsed.targetState && closeMatchForState(parsed.targetState, state, country) ? 1 : 0;
+            rank += parsed.targetState && closeMatchForCity(parsed.targetState, city) ? 1 : 0;
+          }
+        }
         else {
           rank += rankAdjust;
 

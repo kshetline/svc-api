@@ -599,34 +599,62 @@ export function makeLocationKey(city: string, state: string, country: string, ot
 
 export function parseSearchString(q: string, mode: ParseMode): ParsedSearchString {
   const parsed = { actualSearch: q } as ParsedSearchString;
-  const parts = q.split(',');
+  const parts = q.split(',').map(part => part.trim());
+  const altParts = q.split(/\s+/).map(part => part.trim()).filter(part => !/,/.test(part));
   let postalCode = '';
   let targetCity = parts[0];
-  let targetState = parts[1] ? parts[1].trim() : '';
-  let targetCountry = parts[2] ? parts[2].trim() : '';
+  let targetState = parts[1];
+  let targetCountry = parts[2];
   let $: string[];
 
-  // US ZIP codes
-  if (($ = US_ZIP_PATTERN.exec(targetCity))) {
-    postalCode = $[1];
-    targetCity = '';
+  if (altParts.length > 1) {
+    // US ZIP codes mixed with extra info
+    if (($ = US_ZIP_PATTERN.exec(altParts[0]))) {
+      postalCode = $[1];
+      targetCity = '';
+      targetState = altParts[1];
+    }
+    else if (($ = US_ZIP_PATTERN.exec(altParts[1]))) {
+      postalCode = $[1];
+      targetCity = altParts[0];
+      targetState = '';
+    }
+    // Other postal codes mixed with extra info
+    else if (/\d/.test(altParts[0]) && OTHER_POSTAL_CODE_PATTERN.exec(altParts[0])) {
+      postalCode = altParts[0].toUpperCase();
+      targetCity = '';
+      targetState = altParts[1];
+    }
+    else if (/\d/.test(altParts[1]) && OTHER_POSTAL_CODE_PATTERN.exec(altParts[1])) {
+      postalCode = altParts[1].toUpperCase();
+      targetCity = altParts[0];
+      targetState = '';
+    }
   }
-  // Other postal codes
-  else if (/\d/.test(targetCity) && OTHER_POSTAL_CODE_PATTERN.exec(targetCity)) {
-    postalCode = targetCity.toUpperCase();
-    targetCity = '';
+
+  if (!postalCode) {
+    // US ZIP codes
+    if (($ = US_ZIP_PATTERN.exec(targetCity))) {
+      postalCode = $[1];
+      targetCity = '';
+    }
+    // Other postal codes
+    else if (/\d/.test(targetCity) && OTHER_POSTAL_CODE_PATTERN.exec(targetCity)) {
+      postalCode = targetCity.toUpperCase();
+      targetCity = '';
+    }
+    // Misplaced postal codes?
+    else if (targetState && ($ = US_ZIP_PATTERN.exec(targetState))) {
+      postalCode = $[1];
+      targetState = '';
+    }
+    else if (targetState && /\d/.test(targetState) && OTHER_POSTAL_CODE_PATTERN.exec(targetState)) {
+      postalCode = targetState.toUpperCase();
+      targetState = '';
+    }
+    else
+      targetCity = makePlainASCII_UC(targetCity);
   }
-  // Misplaced postal codes?
-  else if (targetState && ($ = US_ZIP_PATTERN.exec(targetState))) {
-    postalCode = $[1];
-    targetState = '';
-  }
-  else if (targetState && /\d/.test(targetState) && OTHER_POSTAL_CODE_PATTERN.exec(targetState)) {
-    postalCode = targetState.toUpperCase();
-    targetState = '';
-  }
-  else
-    targetCity = makePlainASCII_UC(targetCity);
 
   targetState = makePlainASCII_UC(targetState);
   targetCountry = makePlainASCII_UC(targetCountry);
@@ -649,8 +677,10 @@ export function parseSearchString(q: string, mode: ParseMode): ParsedSearchStrin
   parsed.targetState = targetState;
   parsed.normalizedSearch = postalCode || targetCity;
 
-  if (!postalCode && targetState)
+  if (targetState)
     parsed.normalizedSearch += ', ' + targetState;
+  else if (postalCode && targetCity)
+    parsed.normalizedSearch = targetCity + ', ' + postalCode;
 
   return parsed;
 }
