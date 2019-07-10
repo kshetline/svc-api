@@ -198,8 +198,8 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
         const source: number = result.source;
         const geonameID: number = result.geonames_id;
 
-        if ((source >= MIN_EXTERNAL_SOURCE && !extendedSearch && pass === 0) ||
-            !closeMatchForState(parsed.targetState, state, country))
+        if (!parsed.postalCode && ((source >= MIN_EXTERNAL_SOURCE && !extendedSearch && pass === 0) ||
+            !closeMatchForState(parsed.targetState, state, country)))
           continue;
 
         if (altName)
