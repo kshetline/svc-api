@@ -9,13 +9,25 @@ import { formatDateTime } from 'ks-util';
 export let svcApiLogStream: Writable | WriteStream = process.stdout;
 
 if (process.env.SVC_API_LOG) {
-  const logPath = pathJoin(__dirname, process.env.SVC_API_LOG);
-  const fileStream = rfs(logPath, {
-    maxSize: '256K',
+  const options: any = {
     interval: '7d',
     maxFiles: 10,
+    maxSize: '256K',
     rotationTime: true
-  });
+  };
+  let logPath: string;
+  let logFile = pathJoin(__dirname, process.env.SVC_API_LOG);
+  const $ = /(.*)[\/\\](.+)/.exec(logFile);
+
+  if ($) {
+    logPath = $[1];
+    logFile = $[2];
+
+    if (logPath)
+      options.path = logPath;
+  }
+
+  const fileStream = rfs(logFile, options);
 
   svcApiLogStream = new stream.Writable();
   svcApiLogStream._write = (chunk: any, encoding: string, done: (error?: Error) => void) => {
