@@ -35,7 +35,7 @@ if (process.env.SVC_API_LOG) {
       options.path = logPath;
   }
 
-  let logCreation = fs.existsSync(fullLogPath) && fs.statSync(fullLogPath).mtimeMs;
+  let logCreation = fs.existsSync(logPath) && fs.statSync(logPath).mtimeMs;
 
   if (($ = /(.*)(\..*)/.exec(logFile))) {
     logFile = $[1];
