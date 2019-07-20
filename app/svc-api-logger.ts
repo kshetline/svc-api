@@ -20,7 +20,6 @@ if (process.env.SVC_API_LOG) {
   };
   const fullLogPath = pathJoin(__dirname, process.env.SVC_API_LOG);
   const intervalMillis = INTERVAL_DAYS * 86400000;
-  let logCreation = fs.existsSync(fullLogPath) && fs.statSync(fullLogPath).birthtimeMs;
   let logPath: string;
   let logFile = fullLogPath;
   let ext = '';
@@ -35,6 +34,8 @@ if (process.env.SVC_API_LOG) {
     if (logPath)
       options.path = logPath;
   }
+
+  let logCreation = fs.existsSync(fullLogPath) && fs.statSync(fullLogPath).mtimeMs;
 
   if (($ = /(.*)(\..*)/.exec(logFile))) {
     logFile = $[1];
