@@ -1,5 +1,5 @@
 import { readdirSync } from 'fs';
-import { eqci, getFileContents, getWebPage } from './common';
+import { eqci, getFileContents } from './common';
 import { AtlasLocation } from './atlas-location';
 import { Html5Entities } from 'html-entities';
 import { MapClass } from './map-class';
@@ -8,11 +8,12 @@ import { acos, cos_deg, PI, sin_deg } from 'ks-math';
 import { join as pathJoin } from 'path';
 import { svcApiConsole } from './svc-api-logger';
 import { makePlainASCII_UC } from 'ks-util';
+import { requestText } from 'by-request';
 
 export interface ParsedSearchString {
+  postalCode: string;
   targetCity: string;
   targetState: string;
-  doZip: boolean;
   actualSearch: string;
   normalizedSearch: string;
 }
@@ -39,7 +40,7 @@ interface ProcessedNames {
   continent: string;
 }
 
-export class LocationMap extends MapClass<string, AtlasLocation> {}
+export class LocationMap extends MapClass<string, AtlasLocation> { }
 
 const entities = new Html5Entities();
 
@@ -215,10 +216,10 @@ async function initFlagCodes() {
       return;
     }
   }
-  catch (err) { /* Ignore error, proceed to remote retrieval. */}
+  catch (err) { /* Ignore error, proceed to remote retrieval. */ }
 
   try {
-    const lines = (await getWebPage('https://skyviewcafe.com/assets/resources/flags/')).split(/\r\n|\n|\r/);
+    const lines = (await requestText('https://skyviewcafe.com/assets/resources/flags/')).split(/\r\n|\n|\r/);
 
     lines.forEach(line => {
       const $ = />(\w+)\.png</.exec(line);
@@ -390,7 +391,7 @@ export function containsMatchingLocation(matches: LocationMap, location: AtlasLo
     location2.country === location.country) >= 0;
 }
 
-export function fixRearrangedName(name: string): {name: string, variant: string} {
+export function fixRearrangedName(name: string): { name: string, variant: string } {
   let variant: string;
   let $: string[];
 
@@ -403,7 +404,7 @@ export function fixRearrangedName(name: string): {name: string, variant: string}
     name = $[2].toUpperCase() + $[3] + ' ' + variant;
   }
 
-  return {name, variant};
+  return { name, variant };
 }
 
 export function getCode3ForCountry(country: string): string {
@@ -419,7 +420,7 @@ const IGNORED_PLACES = new RegExp('bloomingtonmn|census designated place|colonia
                                   'election precinct|\\(historical\\)|mobilehome|subdivision|unorganized territory|\\{|\\}', 'i');
 
 export function processPlaceNames(city: string, county: string, state: string, country: string, continent: string,
-                           decodeHTML = false, noTrace = true): ProcessedNames {
+                                  decodeHTML = false, noTrace = true): ProcessedNames {
   let abbrevState: string;
   let code3: string;
   let longState: string;
@@ -448,7 +449,7 @@ export function processPlaceNames(city: string, county: string, state: string, c
   if (/\bParis \d\d\b/i.test(city))
     return null;
 
-  ({name: city, variant} = fixRearrangedName(city));
+  ({ name: city, variant } = fixRearrangedName(city));
 
   if (/,/.test(city))
     logWarning(`City name "${city}" (${state}, ${country}) contains a comma.`, noTrace);
@@ -533,7 +534,7 @@ export function processPlaceNames(city: string, county: string, state: string, c
     }
   }
 
-  return {city, variant, county, state, longState, country, longCountry, continent};
+  return { city, variant, county, state, longState, country, longCountry, continent };
 }
 
 export function getFlagCode(country: string, state: string): string {
@@ -597,25 +598,63 @@ export function makeLocationKey(city: string, state: string, country: string, ot
 }
 
 export function parseSearchString(q: string, mode: ParseMode): ParsedSearchString {
-  const parsed = {doZip: false, actualSearch: q} as ParsedSearchString;
-  const parts = q.split(',');
+  const parsed = { actualSearch: q } as ParsedSearchString;
+  const parts = q.split(',').map(part => part.trim());
+  const altParts = q.split(/\s+/).map(part => part.trim()).filter(part => !/,/.test(part));
+  let postalCode = '';
   let targetCity = parts[0];
-  let targetState = parts[1] ? parts[1].trim() : '';
-  let targetCountry = parts[2] ? parts[2].trim() : '';
+  let targetState = parts[1];
+  let targetCountry = parts[2];
   let $: string[];
 
-  // US ZIP codes
-  if (($ = US_ZIP_PATTERN.exec(targetCity))) {
-    targetCity = $[1];
-    parsed.doZip = true;
+  if (altParts.length > 1) {
+    // US ZIP codes mixed with extra info
+    if (($ = US_ZIP_PATTERN.exec(altParts[0]))) {
+      postalCode = $[1];
+      targetCity = '';
+      targetState = altParts[1];
+    }
+    else if (($ = US_ZIP_PATTERN.exec(altParts[1]))) {
+      postalCode = $[1];
+      targetCity = altParts[0];
+      targetState = '';
+    }
+    // Other postal codes mixed with extra info
+    else if (/\d/.test(altParts[0]) && OTHER_POSTAL_CODE_PATTERN.exec(altParts[0])) {
+      postalCode = altParts[0].toUpperCase();
+      targetCity = '';
+      targetState = altParts[1];
+    }
+    else if (/\d/.test(altParts[1]) && OTHER_POSTAL_CODE_PATTERN.exec(altParts[1])) {
+      postalCode = altParts[1].toUpperCase();
+      targetCity = altParts[0];
+      targetState = '';
+    }
   }
-  // Other postal codes
-  else if (/\d/.test(targetCity) && OTHER_POSTAL_CODE_PATTERN.exec(targetCity)) {
-    targetCity = targetCity.toUpperCase();
-    parsed.doZip = true;
+
+  if (!postalCode) {
+    // US ZIP codes
+    if (($ = US_ZIP_PATTERN.exec(targetCity))) {
+      postalCode = $[1];
+      targetCity = '';
+    }
+    // Other postal codes
+    else if (/\d/.test(targetCity) && OTHER_POSTAL_CODE_PATTERN.exec(targetCity)) {
+      postalCode = targetCity.toUpperCase();
+      targetCity = '';
+    }
+    // Misplaced postal codes?
+    else if (targetState && ($ = US_ZIP_PATTERN.exec(targetState))) {
+      postalCode = $[1];
+      targetState = '';
+    }
+    else if (targetState && /\d/.test(targetState) && OTHER_POSTAL_CODE_PATTERN.exec(targetState)) {
+      postalCode = targetState.toUpperCase();
+      targetState = '';
+    }
+    else
+      targetCity = makePlainASCII_UC(targetCity);
   }
-  else
-    targetCity = makePlainASCII_UC(targetCity);
 
   targetState = makePlainASCII_UC(targetState);
   targetCountry = makePlainASCII_UC(targetCountry);
@@ -633,12 +672,15 @@ export function parseSearchString(q: string, mode: ParseMode): ParsedSearchStrin
     }
   }
 
+  parsed.postalCode = postalCode;
   parsed.targetCity = targetCity;
   parsed.targetState = targetState;
-  parsed.normalizedSearch = targetCity;
+  parsed.normalizedSearch = postalCode || targetCity;
 
   if (targetState)
     parsed.normalizedSearch += ', ' + targetState;
+  else if (postalCode && targetCity)
+    parsed.normalizedSearch = targetCity + ', ' + postalCode;
 
   return parsed;
 }
@@ -657,7 +699,7 @@ export function adjustUSCountyName(county: string, state: string): string {
       county += ' Division';
     }
     else if (CENSUS_AREAS.test(county))
-     county += ' Census Area';
+      county += ' Census Area';
     else
       county += ' Borough';
   }
@@ -678,10 +720,10 @@ export function getStatesProvincesAndCountries(): NameAndCode[] {
   Object.keys(longStates).forEach(code => {
     if (usStateCodes.indexOf(code) >= 0) {
       if (usTerritories.indexOf(code) < 0)
-        usStates.push({name: longStates[code], code});
+        usStates.push({ name: longStates[code], code });
     }
     else if (code.length === 2)
-      canadianProvinces.push({name: code === 'NF' ? 'Newfoundland' : longStates[code], code});
+      canadianProvinces.push({ name: code === 'NF' ? 'Newfoundland' : longStates[code], code });
   });
 
   usStates.sort((a, b) => a.name.localeCompare(b.name, 'en'));
@@ -692,7 +734,7 @@ export function getStatesProvincesAndCountries(): NameAndCode[] {
 
   Object.keys(code3ToName).forEach(code => {
     if (!/^(NML|XX.|(.*[^A-Z].*))$/.test(code))
-      countries.push({name: code3ToName[code], code});
+      countries.push({ name: code3ToName[code], code });
   });
 
   countries.sort((a, b) => a.name.localeCompare(b.name, 'en'));

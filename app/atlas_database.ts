@@ -1,7 +1,7 @@
 import { Pool, PoolConnection } from './mysql-await-async';
 import {
   closeMatchForState, code3ToName, countyStateCleanUp, getFlagCode, LocationMap, makeLocationKey,
-  ParsedSearchString, roughDistanceBetweenLocationsInKm, simplify
+  ParsedSearchString, roughDistanceBetweenLocationsInKm, simplify, closeMatchForCity
 } from './gazetteer';
 import { AtlasLocation } from './atlas-location';
 import { MIN_EXTERNAL_SOURCE } from './common';
@@ -15,7 +15,7 @@ export const pool = new Pool({
   database: 'skyviewcafe'
 });
 
-enum MatchType {EXACT_MATCH = 0, EXACT_MATCH_ALT, STARTS_WITH, SOUNDS_LIKE}
+enum MatchType { EXACT_MATCH = 0, EXACT_MATCH_ALT, STARTS_WITH, SOUNDS_LIKE }
 
 const NO_RESULTS_YET = -1;
 const MAX_MONTHS_BEFORE_REDOING_EXTENDED_SEARCH = 12;
@@ -117,16 +117,16 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
 
       switch (matchType) {
         case MatchType.EXACT_MATCH:
-          if (parsed.doZip) {
+          if (parsed.postalCode) {
             query = 'SELECT * FROM atlas2 WHERE postal_code = ?';
-            values = [parsed.targetCity];
+            values = [parsed.postalCode];
           }
           else {
             rankAdjust = 1;
             query = 'SELECT * FROM atlas2 WHERE key_name = ?' + condition;
             values = [simplifiedCity];
           }
-        break;
+          break;
 
         case MatchType.EXACT_MATCH_ALT:
           query = 'SELECT * FROM atlas_alt_names WHERE alt_key_name = ?';
@@ -155,13 +155,13 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
             query = 'SELECT * FROM atlas2 WHERE key_name = ?';
             values = [keyName];
           }
-        break;
+          break;
 
         case MatchType.STARTS_WITH:
           query = 'SELECT * FROM atlas2 WHERE ((key_name >= ? AND key_name < ?) ' +
-                  'OR (variant >= ? AND variant < ?))' + condition;
+            'OR (variant >= ? AND variant < ?))' + condition;
           values = [simplifiedCity, simplifiedCity + '~', simplifiedCity, simplifiedCity + '~'];
-        break;
+          break;
 
         case MatchType.SOUNDS_LIKE:
           if (/\d/.test(parsed.targetCity))
@@ -170,12 +170,12 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
           rankAdjust = -1;
           query = 'SELECT * FROM atlas2 WHERE sound = SOUNDEX(?)' + condition;
           values = [simplifiedCity];
-        break;
+          break;
       }
 
-      const results = await connection.queryResults(query, values);
+      const results = (await connection.queryResults(query, values)) || [];
 
-      for (const result of (results ? results : [])) {
+      for (const result of results) {
         const itemNo = result.item_no;
 
         if (examined.has(itemNo))
@@ -198,15 +198,23 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
         const source: number = result.source;
         const geonameID: number = result.geonames_id;
 
-        if ((source >= MIN_EXTERNAL_SOURCE && !extendedSearch && pass === 0) ||
-            !closeMatchForState(parsed.targetState, state, country))
+        if (!parsed.postalCode && ((source >= MIN_EXTERNAL_SOURCE && !extendedSearch && pass === 0) ||
+            !closeMatchForState(parsed.targetState, state, country)))
           continue;
 
         if (altName)
           city = altName;
 
-        if (parsed.doZip)
+        if (parsed.postalCode) {
           rank = ZIP_RANK;
+
+          if (results.length > 1) {
+            rank += parsed.targetCity && closeMatchForCity(parsed.targetCity, city) ? 2 : 0;
+            rank += parsed.targetCity && closeMatchForState(parsed.targetCity, state, country) ? 1 : 0;
+            rank += parsed.targetState && closeMatchForState(parsed.targetState, state, country) ? 1 : 0;
+            rank += parsed.targetState && closeMatchForCity(parsed.targetState, city) ? 1 : 0;
+          }
+        }
         else {
           rank += rankAdjust;
 
@@ -248,11 +256,11 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
       }
 
       // Skip SOUNDS_LIKE search step on first pass, or if better matches have already been found. Only one step needed for postal codes.
-      if (((pass === 0 || matches.size > 0) && matchType >= MatchType.STARTS_WITH) || parsed.doZip)
+      if (((pass === 0 || matches.size > 0) && matchType >= MatchType.STARTS_WITH) || parsed.postalCode)
         break;
     }
 
-    if (parsed.doZip)
+    if (parsed.postalCode)
       break;
   }
 
@@ -312,7 +320,7 @@ export async function updateAtlasDB(connection: PoolConnection, matchList: Atlas
       const distance = roughDistanceBetweenLocationsInKm(location.latitude, location.longitude, dbLatitude, dbLongitude);
 
       if (country === dbCountry && distance < 10 &&
-         (country !== 'USA' && country !== 'CAN' || state === dbState)) {
+          (country !== 'USA' && country !== 'CAN' || state === dbState)) {
         found = true;
 
         break;

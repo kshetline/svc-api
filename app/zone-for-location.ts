@@ -1,6 +1,7 @@
 import { Request, Response, Router } from 'express';
 import { toBoolean, toNumber } from 'ks-util';
-import { asyncHandler, getWebPage, processMillis } from './common';
+import { asyncHandler, processMillis } from './common';
+import { requestJson } from 'by-request';
 
 export const router = Router();
 
@@ -14,7 +15,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   let data: any;
 
   try {
-    data = JSON.parse(await getWebPage(url));
+    data = await requestJson(url);
   }
   catch (err) {
     data = {status: 'ERROR', errorMessage: err.toString()};
