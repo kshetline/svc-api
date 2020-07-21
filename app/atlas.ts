@@ -57,14 +57,15 @@ export async function initAtlas(re_init = false) {
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const startTime = processMillis();
 
-  const q = req.query.q ? req.query.q.trim() : 'Nashua, NH';
+  const q = req.query.q ? req.query.q.toString().trim() : 'Nashua, NH';
   const version = toInt(req.query.version, 9);
   const callback = req.query.callback;
   const plainText = toBoolean(req.query.pt, true);
-  const remoteMode = (/skip|normal|extend|forced|only|geonames|getty/i.test(req.query.remote) ? req.query.remote.toLowerCase() : 'skip') as RemoteMode;
+  const remoteMode = (/skip|normal|extend|forced|only|geonames|getty/i.test(req.query.remote.toString()) ?
+    req.query.remote.toString().toLowerCase() : 'skip') as RemoteMode;
   const withoutDB = /only|geonames|getty/i.test(remoteMode);
   const extend = (remoteMode === 'extend' || remoteMode === 'only' || remoteMode === 'forced');
-  const client = (req.query.client ? req.query.client.toLowerCase() : '');
+  const client = (req.query.client ? req.query.client.toString().toLowerCase() : '');
   const svc = (!client || client === 'sa' || client === 'web');
   const limit = Math.min(toInt(req.query.limit, DEFAULT_MATCH_LIMIT), MAX_MATCH_LIMIT);
   const noTrace = toBoolean(req.query.notrace, true) || remoteMode === 'only';
