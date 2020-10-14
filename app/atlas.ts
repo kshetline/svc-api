@@ -61,7 +61,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const version = toInt(req.query.version, 9);
   const callback = req.query.callback;
   const plainText = toBoolean(req.query.pt, true);
-  const remoteMode = (/skip|normal|extend|forced|only|geonames|getty/i.test(req.query.remote.toString()) ?
+  const remoteMode = (/skip|normal|extend|forced|only|geonames|getty/i.test((req.query.remote ?? '').toString()) ?
     req.query.remote.toString().toLowerCase() : 'skip') as RemoteMode;
   const withoutDB = /only|geonames|getty/i.test(remoteMode);
   const extend = (remoteMode === 'extend' || remoteMode === 'only' || remoteMode === 'forced');
