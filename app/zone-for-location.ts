@@ -10,7 +10,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const lon = toNumber(req.query.lon);
   const time = toNumber(req.query.timestamp, Math.floor(processMillis() / 1000));
   const key = encodeURIComponent(process.env.GOOGLE_API_KEY);
-  const plainText = toBoolean(req.query.pt, true);
+  const plainText = toBoolean(req.query.pt, false, true);
   const url = `https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lon}&timestamp=${time}&key=${key}`;
   let data: any;
 

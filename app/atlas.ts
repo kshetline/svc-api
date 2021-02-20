@@ -60,7 +60,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const q = req.query.q ? req.query.q.toString().trim() : 'Nashua, NH';
   const version = toInt(req.query.version, 9);
   const callback = req.query.callback;
-  const plainText = toBoolean(req.query.pt, true);
+  const plainText = toBoolean(req.query.pt, false, true);
   const remoteMode = (/skip|normal|extend|forced|only|geonames|getty/i.test((req.query.remote ?? '').toString()) ?
     req.query.remote.toString().toLowerCase() : 'skip') as RemoteMode;
   const withoutDB = /only|geonames|getty/i.test(remoteMode);

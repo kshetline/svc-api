@@ -5,7 +5,7 @@ import { toBoolean } from '@tubular/util';
 export const router = Router();
 
 router.get('/', (req: Request, res: Response) => {
-  const plainText = toBoolean(req.query.pt, true);
+  const plainText = toBoolean(req.query.pt, false, true);
   const response = [''];
 
   response.push(...getStatesProvincesAndCountries().map(nameAndCode => {
