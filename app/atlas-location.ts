@@ -1,4 +1,4 @@
-import { KsTimeZone } from 'ks-date-time-zone';
+import { Timezone } from '@tubular/time';
 import { eqci } from './common';
 import { adjustUSCountyName } from './gazetteer';
 
@@ -42,14 +42,14 @@ export class AtlasLocation {
 
   getZoneOffset(): number {
     const zoneName = /(.*?)(\?)?$/.exec(this.zone)[1];
-    const zone = KsTimeZone.getTimeZone(zoneName);
+    const zone = Timezone.getTimezone(zoneName);
 
     return Math.round(zone.utcOffset / 60);
   }
 
   getZoneDst(): number {
     const zoneName = /(.*?)(\?)?$/.exec(this.zone)[1];
-    const zone = KsTimeZone.getTimeZone(zoneName);
+    const zone = Timezone.getTimezone(zoneName);
 
     return Math.round(zone.dstOffset / 60);
   }

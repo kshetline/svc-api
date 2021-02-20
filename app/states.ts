@@ -1,6 +1,6 @@
 import { Request, Response, Router } from 'express';
 import { getStatesProvincesAndCountries } from './gazetteer';
-import { toBoolean } from 'ks-util';
+import { toBoolean } from '@tubular/util';
 
 export const router = Router();
 

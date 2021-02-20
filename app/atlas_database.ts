@@ -6,7 +6,7 @@ import {
 import { AtlasLocation } from './atlas-location';
 import { MIN_EXTERNAL_SOURCE } from './common';
 import { svcApiConsole } from './svc-api-logger';
-import { toBoolean, makePlainASCII } from 'ks-util';
+import { toBoolean, makePlainASCII } from '@tubular/util';
 
 export const pool = new Pool({
   host: (toBoolean(process.env.DB_REMOTE) ? 'skyviewcafe.com' : '127.0.0.1'),

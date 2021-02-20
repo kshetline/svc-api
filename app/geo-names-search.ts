@@ -7,7 +7,7 @@ import {
   timedPromise
 } from './common';
 import { AtlasLocation } from './atlas-location';
-import { toInt } from 'ks-util';
+import { toInt } from '@tubular/util';
 import { requestJson } from 'by-request';
 
 export interface GeoNamesMetrics {

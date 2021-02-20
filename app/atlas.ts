@@ -14,7 +14,7 @@ import { initTimezones } from './timezones';
 import { GeoNamesMetrics, geoNamesSearch } from './geo-names-search';
 import { svcApiConsole } from './svc-api-logger';
 import { PoolConnection } from './mysql-await-async';
-import { toInt, toBoolean, makePlainASCII_UC } from 'ks-util';
+import { toInt, toBoolean, makePlainASCII_UC } from '@tubular/util';
 
 export const router = Router();
 

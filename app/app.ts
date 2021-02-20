@@ -9,12 +9,12 @@ import { router as ipToLocationRouter } from './ip-to-location';
 import { router as logRouter } from './log-access';
 import { router as zoneRouter } from './zone-for-location';
 import { router as mapsRouter } from './maps-api';
-import { initTimeZoneLargeAlt } from 'ks-date-time-zone/dist/ks-timezone-large-alt';
+import { initTimezoneLargeAlt } from '@tubular/time';
 import { svcApiConsole, svcApiLogStream, svcApiSkipFilter } from './svc-api-logger';
-import { formatDateTime } from 'ks-util';
+import { formatDateTime } from '@tubular/util';
 import { getPublicIp } from './public-ip';
 
-initTimeZoneLargeAlt();
+initTimezoneLargeAlt();
 
 const app: Application = express();
 const port = process.env.PORT || 80;

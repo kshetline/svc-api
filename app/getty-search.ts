@@ -3,7 +3,7 @@ import { closeMatchForCity, closeMatchForState, containsMatchingLocation, fixRea
 import { processMillis, SOURCE_GETTY_UPDATE, timedPromise } from './common';
 import { AtlasLocation } from './atlas-location';
 import { getTimeZone } from './timezones';
-import { toNumber, toInt } from 'ks-util';
+import { toNumber, toInt } from '@tubular/util';
 import { requestText } from 'by-request';
 
 export interface GettyMetrics {

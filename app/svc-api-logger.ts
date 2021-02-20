@@ -4,7 +4,7 @@ import stream, { Writable } from 'stream';
 import fs, { WriteStream } from 'fs';
 import { Request, Response } from 'express';
 import * as util from 'util';
-import { formatDateTime, zeroPad } from 'ks-util';
+import { formatDateTime, zeroPad } from '@tubular/util';
 
 export let svcApiLogStream: Writable | WriteStream = process.stdout;
 
@@ -52,7 +52,7 @@ if (process.env.SVC_API_LOG) {
     }
   };
 
-  let fileStream = rfs(fileName, options);
+  let fileStream = (rfs as any)(fileName, options);
 
   svcApiLogStream = new stream.Writable();
   svcApiLogStream._write = async (chunk: any, encoding: string, done: (error?: Error) => void) => {
@@ -73,14 +73,14 @@ if (process.env.SVC_API_LOG) {
       if (fileStream.close)
         fileStream.close();
       else if (fileStream.end) {
-        await new Promise(resolve => {
+        await new Promise<void>(resolve => {
           fileStream.end(() => resolve());
         });
       }
 
       logCreation = now;
       fs.renameSync(fullLogPath, datedFilePath);
-      fileStream = rfs(fileName, options);
+      fileStream = (rfs as any)(fileName, options);
       checkMaxFiles = true;
     }
 
@@ -88,7 +88,7 @@ if (process.env.SVC_API_LOG) {
 
     if (chunk instanceof Buffer) {
       try {
-        output = chunk.toString(encoding === 'buffer' ? 'utf8' : encoding);
+        output = chunk.toString((encoding === 'buffer' ? 'utf8' : encoding) as any);
       }
       catch (err) {
         // Unknown encoding?

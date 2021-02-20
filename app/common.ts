@@ -61,14 +61,14 @@ export async function getFileContents(path: string, encoding?: string): Promise<
     encoding = 'utf8';
 
   return new Promise<string>((resolve, reject) => {
-    const input = createReadStream(path, {encoding: encoding});
+    const input = createReadStream(path, { encoding: encoding as any });
     let content = '';
 
     input.on('error', err => {
       reject(`Error reading ${path}: ${err.toString()}`);
     });
     input.on('data', (data: Buffer) => {
-      content += data.toString(encoding);
+      content += data.toString(encoding as any);
     });
     input.on('end', () => {
       input.close();

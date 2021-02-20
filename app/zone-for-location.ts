@@ -1,5 +1,5 @@
 import { Request, Response, Router } from 'express';
-import { toBoolean, toNumber } from 'ks-util';
+import { toBoolean, toNumber } from '@tubular/util';
 import { asyncHandler, processMillis } from './common';
 import { requestJson } from 'by-request';
 
