@@ -1,6 +1,6 @@
 {
   "name": "svc-api",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "SVC API",
   "main": "index.js",
   "scripts": {
@@ -17,12 +17,12 @@
   },
   "dependencies": {
     "@tubular/math": "^2.2.1",
-    "@tubular/time": "^2.6.0",
-    "@tubular/util": "^3.6.0",
+    "@tubular/time": "^2.6.5",
+    "@tubular/util": "^3.7.0",
     "basic-auth": "^2.0.1",
-    "by-request": "^1.2.0",
+    "by-request": "^1.2.6",
     "express": "^4.17.1",
-    "follow-redirects": "^1.13.3",
+    "follow-redirects": "^1.14.0",
     "html-entities": "^1.4.0",
     "iconv-lite": "^0.6.2",
     "lodash": "^4.17.21",
