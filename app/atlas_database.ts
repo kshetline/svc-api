@@ -22,6 +22,7 @@ const MAX_MONTHS_BEFORE_REDOING_EXTENDED_SEARCH = 12;
 const ZIP_RANK = 9;
 
 pool.on('connection', connection => {
+  // noinspection JSIgnoredPromiseFromCall
   connection.query("SET NAMES 'utf8'");
 });
 
@@ -90,7 +91,7 @@ export async function logSearchResults(connection: PoolConnection, searchStr: st
     }
     else {
       query = 'UPDATE atlas_searches2 SET hits = ?, extended = ? WHERE search_string = ?';
-      values = [++dbHits, extended, searchStr];
+      values = [++dbHits, extended && dbUpdate, searchStr];
     }
 
     await pool.queryResults(query, values);

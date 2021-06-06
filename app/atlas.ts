@@ -68,7 +68,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const client = (req.query.client ? req.query.client.toString().toLowerCase() : '');
   const svc = (!client || client === 'sa' || client === 'web');
   const limit = Math.min(toInt(req.query.limit, DEFAULT_MATCH_LIMIT), MAX_MATCH_LIMIT);
-  const noTrace = toBoolean(req.query.notrace, true) || remoteMode === 'only';
+  const noTrace = toBoolean(req.query.notrace, false, true) || remoteMode === 'only';
   const dbUpdate = DB_UPDATE && !noTrace;
 
   const parsed = parseSearchString(q, version < 3 ? 'loose' : 'strict');
@@ -157,7 +157,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const { celestial, suggestions } = summarizeResults(result, remoteResults, dbError, extend, version, parsed, svc, client);
 
   if (!dbError)
-    await updateDbIfRequired(uniqueMatches, remoteResults, parsed.normalizedSearch, gotBetterMatchesFromRemoteData, extend, dbUpdate);
+    await updateDbIfRequired(uniqueMatches, remoteResults, parsed.normalizedSearch, gotBetterMatchesFromRemoteData, extend, dbUpdate && !noTrace);
 
   const log = createCompactLogSummary(result, remoteResults, dbMatches ? dbMatches.size : 0, dbError, startTime,
     client, version, celestial, suggestions);
@@ -498,7 +498,7 @@ async function updateDbIfRequired(uniqueMatches: AtlasLocation[], remoteResults:
     try {
       connection = await pool.getConnection();
 
-      if ((!await logSearchResults(connection, normalizedSearch, extend, uniqueMatches.length) ||
+      if ((!await logSearchResults(connection, normalizedSearch, extend, uniqueMatches.length, dbUpdate) ||
            gotBetterMatchesFromRemoteData) && remoteResults)
         await updateAtlasDB(connection, uniqueMatches, dbUpdate);
     }
