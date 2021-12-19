@@ -1,7 +1,7 @@
 import { readdirSync } from 'fs';
 import { eqci, getFileContents } from './common';
 import { AtlasLocation } from './atlas-location';
-import { Html5Entities } from 'html-entities';
+import { decode } from 'html-entities';
 import { MapClass } from './map-class';
 import { logWarning } from './atlas_database';
 import { acos, cos_deg, PI, sin_deg } from '@tubular/math';
@@ -41,8 +41,6 @@ interface ProcessedNames {
 }
 
 export class LocationMap extends MapClass<string, AtlasLocation> { }
-
-const entities = new Html5Entities();
 
 export const longStates: Record<string, string> = {};
 export const stateAbbreviations: Record<string, string> = {};
@@ -430,11 +428,11 @@ export function processPlaceNames(city: string, county: string, state: string, c
   let variant: string;
 
   if (decodeHTML) {
-    city      = entities.decode(city);
-    county    = entities.decode(county);
-    state     = entities.decode(state);
-    country   = entities.decode(country);
-    continent = entities.decode(continent);
+    city      = decode(city);
+    county    = decode(county);
+    state     = decode(state);
+    country   = decode(country);
+    continent = decode(continent);
   }
 
   if (/\b\d+[a-z]/i.test(city))
