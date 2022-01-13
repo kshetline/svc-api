@@ -22,7 +22,7 @@
     "basic-auth": "^2.0.1",
     "by-request": "^1.2.7",
     "express": "^4.17.2",
-    "follow-redirects": "^1.14.6",
+    "follow-redirects": "^1.14.7",
     "html-entities": "^2.3.2",
     "iconv-lite": "^0.6.3",
     "lodash": "^4.17.21",
