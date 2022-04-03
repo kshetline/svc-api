@@ -28,7 +28,7 @@ async function geoNamesSearchAux(targetCity: string, targetState: string, postal
   const keyedPlaces = new LocationMap();
 
   targetCity = targetCity.replace(/^mt\b/i, 'mount');
-  metrics = metrics ? metrics : {} as GeoNamesMetrics;
+  metrics = metrics || {} as GeoNamesMetrics;
   metrics.matchedCount = 0;
 
   let url = `http://api.geonames.org/${postalCode ? 'postalCodeSearchJSON' : 'searchJSON'}?username=skyview&style=full`;

@@ -147,7 +147,7 @@ for (let i = 0; i < states.length; i += 2) {
   stateAbbreviations[states[i].toUpperCase()] = states[i + 1];
 }
 
-export async function initGazetteer() {
+export async function initGazetteer(): Promise<void> {
   try {
     await initFlagCodes();
 
@@ -201,7 +201,7 @@ export async function initGazetteer() {
 
 const flagCodes = new Set<string>();
 
-async function initFlagCodes() {
+async function initFlagCodes(): Promise<void> {
   try {
     const flagFiles = readdirSync(pathJoin(__dirname, '../../public/assets/resources/flags'));
     let $: string[];
@@ -296,17 +296,16 @@ function startsWithICND(testee: string, test: string): boolean { // Ignore Case 
     return false;
 
   testee = simplify(testee);
-  test   = simplify(test);
+  test = simplify(test);
 
   return testee.startsWith(test);
 }
-
 
 export function closeMatchForCity(target: string, candidate: string): boolean {
   if (!target || !candidate)
     return false;
 
-  target    = simplify(target);
+  target = simplify(target);
   candidate = simplify(candidate);
 
   return candidate.startsWith(target);
@@ -316,10 +315,10 @@ export function closeMatchForState(target: string, state: string, country: strin
   if (!target)
     return true;
 
-  const  longState   = longStates[state];
-  const  longCountry = code3ToName[country];
-  const  code2       = code3ToCode2[country];
-  const  oldCode2    = new3ToOld2[country];
+  const longState   = longStates[state];
+  const longCountry = code3ToName[country];
+  const code2       = code3ToCode2[country];
+  const oldCode2    = new3ToOld2[country];
 
   return (startsWithICND(state, target) ||
           startsWithICND(country, target) ||
@@ -422,18 +421,16 @@ const IGNORED_PLACES = new RegExp('bloomingtonmn|census designated place|colonia
 export function processPlaceNames(city: string, county: string, state: string, country: string, continent: string,
                                   decodeHTML = false, noTrace = true): ProcessedNames {
   let abbrevState: string;
-  let code3: string;
   let longState: string;
   let longCountry: string;
-  let altForm: string;
   let origCounty: string;
   let variant: string;
 
   if (decodeHTML) {
-    city      = entities.decode(city);
-    county    = entities.decode(county);
-    state     = entities.decode(state);
-    country   = entities.decode(country);
+    city = entities.decode(city);
+    county = entities.decode(county);
+    state = entities.decode(state);
+    country = entities.decode(country);
     continent = entities.decode(continent);
   }
 
@@ -459,17 +456,17 @@ export function processPlaceNames(city: string, county: string, state: string, c
   if (!variant && ($ = /^(lake|mount|(?:mt\.?)|the|la|las|el|le|los)\b(.+)/i.exec(city)))
     variant = $[2].trim();
 
-  altForm = altFormToStd[simplify(country)];
+  const altForm = altFormToStd[simplify(country)];
 
   if (altForm)
     country = altForm;
 
-  state  = countyStateCleanUp(state);
+  state = countyStateCleanUp(state);
   county = countyStateCleanUp(county);
 
-  longState   = state;
+  longState = state;
   longCountry = country;
-  code3       = getCode3ForCountry(country);
+  const code3 = getCode3ForCountry(country);
 
   if (code3) {
     country = code3;
@@ -576,7 +573,6 @@ export function roughDistanceBetweenLocationsInKm(lat1: number, long1: number, l
 }
 
 export function makeLocationKey(city: string, state: string, country: string, otherLocations: LocationMap): string {
-  let baseKey: string;
   let key: string;
   let index = 1;
 
@@ -587,7 +583,7 @@ export function makeLocationKey(city: string, state: string, country: string, ot
   else
     key = city + ',' + country;
 
-  baseKey = key;
+  const baseKey = key;
 
   while (otherLocations.has(key)) {
     ++index;

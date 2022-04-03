@@ -40,7 +40,7 @@ const DB_UPDATE = true;
 
 let lastInit = 0;
 
-export async function initAtlas(re_init = false) {
+export async function initAtlas(re_init = false): Promise<void> {
   try {
     await initTimezones();
     await initGazetteer();
@@ -274,14 +274,14 @@ function eliminateDuplicatesAndSort(mergedMatches: LocationArrayMap, limit: numb
           if (source1 > source2) {
             locations[j] = undefined;
             location1.rank = Math.max(rank1, rank2);
-            location1.zip = (zip1 ? zip1 : zip2);
+            location1.zip = (zip1 || zip2);
             location1.source = source2;
             location1.useAsUpdate = !location1.isCloseMatch(location2);
           }
           else {
             locations[i] = undefined;
             location2.rank = Math.max(rank1, rank2);
-            location1.zip = (zip2 ? zip2 : zip1);
+            location1.zip = (zip2 || zip1);
             location2.source = source1;
             location2.useAsUpdate = (source2 > source1 && !location2.isCloseMatch(location1));
             // After eliminating location1 (index i), end j loop since there's nothing left from the outer loop for inner
@@ -355,7 +355,7 @@ function eliminateDuplicatesAndSort(mergedMatches: LocationArrayMap, limit: numb
             // Favor SVC's database entry, but keep higher rank.
             locations[i] = undefined;
             location2.rank = Math.max(rank1, rank2);
-            location2.zip = (zip1 ? zip1 : zip2);
+            location2.zip = (zip1 || zip2);
             break;
           }
           else
@@ -402,7 +402,7 @@ async function remoteSourcesSearch(parsed: ParsedSearchString, doGeonames: boole
 
   if (doGetty && !parsed.postalCode) {
     results.gettyMetrics = {} as GettyMetrics;
-    gettyIndex = nextIndex /* ++ */; // TODO: Put back trailing ++ if another remote source is added.
+    gettyIndex = nextIndex; /* ++ */ // TODO: Put back trailing ++ if another remote source is added.
     promises.push(gettySearch(parsed.targetCity, parsed.targetState, results.gettyMetrics, noTrace));
   }
 
@@ -438,7 +438,7 @@ async function remoteSourcesSearch(parsed: ParsedSearchString, doGeonames: boole
 
 function summarizeResults(result: SearchResult, remoteResults: RemoteSearchResults, dbError: string,
                           extend: boolean, version: number, parsed: ParsedSearchString,
-                          svc: boolean, client: string) {
+                          svc: boolean, client: string): { celestial: boolean, suggestions: string } {
   if (remoteResults) {
     if (remoteResults.geoNamesMetrics && !remoteResults.geoNamesError) {
       const metrics = remoteResults.geoNamesMetrics;

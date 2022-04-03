@@ -67,9 +67,9 @@ export async function logSearchResults(connection: PoolConnection, searchStr: st
 
   if (results && results.length > 0) {
     wasExtended = results[0].extended;
-    dbHits      = results[0].hits;
-    matches     = results[0].matches;
-    ageMonths   = results[0].months;
+    dbHits = results[0].hits;
+    matches = results[0].matches;
+    ageMonths = results[0].months;
 
     if (ageMonths < MAX_MONTHS_BEFORE_REDOING_EXTENDED_SEARCH && (wasExtended || !extended))
       found = true;
@@ -133,6 +133,7 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
           query = 'SELECT * FROM atlas_alt_names WHERE alt_key_name = ?';
           values = [simplifiedCity];
 
+          /* eslint-disable no-case-declarations */
           const altResults = await pool.queryResults(query, values);
           let misspelling: string;
           let keyName: string;
@@ -226,7 +227,6 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
         }
 
         const location = new AtlasLocation();
-        let key: string;
 
         location.city = city;
         location.county = countyStateCleanUp(county);
@@ -249,7 +249,8 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
         else if (matchType === MatchType.SOUNDS_LIKE)
           location.matchedBySound = true;
 
-        key = makeLocationKey(city, state, country, matches);
+        const key = makeLocationKey(city, state, country, matches);
+
         matches.set(key, location);
 
         if (matches.size > maxMatches * 4)
@@ -301,10 +302,10 @@ export async function updateAtlasDB(connection: PoolConnection, matchList: Atlas
     let dbCounty = null;
     let dbState = null;
 
-    for (const result of (results ? results : [])) {
+    for (const result of (results || [])) {
       dbItemNo = result.item_no;
       dbCounty = result.admin2;
-      dbState  = result.admin1;
+      dbState = result.admin1;
 
       if (asUpdate) {
         if (found)

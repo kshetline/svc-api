@@ -42,7 +42,7 @@ async function gettySearchAux(targetCity: string, targetState: string, metrics: 
   for (let i = 0; i < originalKeys.length; ++i) {
     let key = originalKeys[i];
     const url = 'http://www.getty.edu/vow/TGNFullDisplay?find=&place=&nation=&english=Y&subjectid=' + key;
-    const options = {headers: {'User-Agent': FAKE_USER_AGENT, 'Referer': 'http://www.getty.edu/vow/TGNServlet'}};
+    const options = { headers: { 'User-Agent': FAKE_USER_AGENT, Referer: 'http://www.getty.edu/vow/TGNServlet' } };
     let lines: string[];
 
     try {
@@ -138,7 +138,7 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
     let longCountry: string;
     let longState: string;
     let isMatch: boolean;
-    let placeType: string;
+    let placeType: string = null;
     let stage: Stage;
     let state: string;
     let url: string;
@@ -149,20 +149,20 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
 
     searchStr = searchStr.replace(/^mt\b/, 'mount');
 
-    url  = 'http://www.getty.edu/'
+    url = 'http://www.getty.edu/'
          + 'vow/TGNServlet'
          + '?nation='
          + '&english=Y'
          + '&find=' + encodeURIComponent(searchStr).replace('*', '%2A')
          + '&place=atoll%2C+cape%2C+city%2C+county%2C+dependent+state%2C+inhabited+place%2C+island%2C+mountain%2C+'
-         +  'nation%2C+neighborhood%2C+park%2C+peak%2C+province%2C+state%2C+suburb%2C+town%2C+township%2C+village';
+         + 'nation%2C+neighborhood%2C+park%2C+peak%2C+province%2C+state%2C+suburb%2C+town%2C+township%2C+village';
 
     if (page > 1)
       url += '&prev_page=' + (page - 1);
 
     url += '&page=' + page;
 
-    const options = {headers: {'User-Agent': FAKE_USER_AGENT, 'Referer': 'http://www.getty.edu/research/tools/vocabularies/tgn/index.html'}};
+    const options = { headers: { 'User-Agent': FAKE_USER_AGENT, Referer: 'http://www.getty.edu/research/tools/vocabularies/tgn/index.html' } };
     let lines: string[];
 
     try {
@@ -218,7 +218,7 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
             placeType = $[3];
             stage = Stage.LOOKING_FOR_HIERARCHY;
           }
-          else if (stage === Stage.LOOKING_FOR_HIERARCHY && ($ = /<TD COLSPAN=2><SPAN CLASS=page>\((.+)\) \[\d+\]/.exec(line))) {
+          else if (stage === Stage.LOOKING_FOR_HIERARCHY && ($ = /<TD COLSPAN=2><SPAN CLASS=page>\((.+)\) \[\d+]/.exec(line))) {
             hierarchy = $[1];
             // It sucks having commas as part of real data which is itself delimited by commas! (Foobar, Republic of).
             hierarchy = hierarchy.replace(/(, )(.[^,]+?), ([^,]+? (ar-|da|de|du|d'|La|la|Le|le|Las|las|Les|les|Los|los|of|The|the|van))(,|$)/g, '$1$3 2$5');
@@ -357,7 +357,7 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
             else
               placeType = 'P.PPL';
 
-           const location = new AtlasLocation();
+            const location = new AtlasLocation();
 
             location.city = city;
             location.county = county;
@@ -371,17 +371,14 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
             location.rank = 0; // TODO: Can be improved?
 
             if (!containsMatchingLocation(keyedPlaces, location) &&
-                !containsMatchingLocation(altKeyedPlaces, location))
-            {
+                !containsMatchingLocation(altKeyedPlaces, location)) {
               ++matchCount;
               location.zone = getTimeZone(location);
 
-              if (asAlternate) {
+              if (asAlternate)
                 altKeyedPlaces.set(key, location);
-              }
-              else {
+              else
                 keyedPlaces.set(key, location);
-              }
             }
           }
         }
@@ -391,7 +388,6 @@ async function gettyPreliminarySearch(targetCity: string, targetState: string, m
     // Never read more than 6 pages, and don't keep going if at least
     // 50 matches have been found. If the match rate is high in the first
     // two of pages or more, don't go any further than that.
-
   } while (theresMore && page < 6 && matchCount < 50 && !(page > 1 && matchCount >= page * 12));
 
   if (matchCount === 0 && !goodFormat)

@@ -19,10 +19,11 @@ router.get('/json/*', (req: Request, res: Response) => {
 
     if (times.length === MAX_PER_MINUTE && times[0] > now - 60000) {
       if (params.callback)
-        res.jsonp({message: 'busy', status: 'fail'});
+        res.jsonp({ message: 'busy', status: 'fail' });
       else
-        res.send({message: 'busy', status: 'fail'});
-    } else {
+        res.send({ message: 'busy', status: 'fail' });
+    }
+    else {
       times.push(now);
 
       if (times.length > MAX_PER_MINUTE) {
@@ -62,7 +63,8 @@ router.get('/json/*', (req: Request, res: Response) => {
         end: true
       });
     }
-  } else {
+  }
+  else {
     notFound(res);
   }
 });

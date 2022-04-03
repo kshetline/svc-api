@@ -1,5 +1,6 @@
 import mysql, {
   FieldInfo, MysqlError, PoolConnection as _PoolConnection, QueryOptions, Pool as _Pool, PoolConfig } from 'mysql';
+// eslint-disable-next-line node/no-deprecated-api
 import { parse as parseUrl } from 'url';
 
 export interface FullQueryResults {
@@ -27,7 +28,8 @@ export class Pool {
         if (err) {
           this.logError(err);
           reject(err);
-        } else
+        }
+        else
           resolve(new PoolConnection(connection, this));
       });
     });
@@ -50,14 +52,14 @@ export class Pool {
     return this;
   }
 
-  query(sqlStringOrOptions: string | QueryOptions, values?: any) {
+  query(sqlStringOrOptions: string | QueryOptions, values?: any): Promise<FullQueryResults> {
     return new Promise<FullQueryResults>(resolve => {
       const args = typeof sqlStringOrOptions === 'string' ?
         [sqlStringOrOptions, values] : [sqlStringOrOptions];
 
       (this._pool.query as any)(...args, (err: MysqlError, results: any, fields: FieldInfo[]) => {
         this.logError(err);
-        resolve({err, results, fields});
+        resolve({ err, results, fields });
       });
     });
   }
@@ -106,7 +108,7 @@ export class PoolConnection {
 
         (this.connection.query as any)(...args, (err: MysqlError, results: any, fields: FieldInfo[]) => {
           this.logError(err);
-          resolve({err, results, fields});
+          resolve({ err, results, fields });
         });
     });
   }

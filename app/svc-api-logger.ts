@@ -24,7 +24,7 @@ if (process.env.SVC_API_LOG) {
   let logFile = fullLogPath;
   let ext = '';
   let separator = '';
-  let $ = /(.*)([\/\\])(.+)/.exec(logFile);
+  let $ = /(.*)([/\\])(.+)/.exec(logFile);
 
   if ($) {
     logPath = $[1];
@@ -55,7 +55,7 @@ if (process.env.SVC_API_LOG) {
   let fileStream = (rfs as any)(fileName, options);
 
   svcApiLogStream = new stream.Writable();
-  svcApiLogStream._write = async (chunk: any, encoding: string, done: (error?: Error) => void) => {
+  svcApiLogStream._write = async (chunk: any, encoding: string, done: (error?: Error) => void): Promise<void> => {
     // rotating-file-stream isn't doing as complete a job as I'd hope for in rotating file names
     // and cleaning up files, so the code below takes over some of that work.
     const now = Date.now();
@@ -118,7 +118,7 @@ if (process.env.SVC_API_LOG) {
 }
 
 // Only log requests that are for SVC API calls, not for static files pulled from the "public" folder.
-export function svcApiSkipFilter(req: Request, res: Response): boolean {
+export function svcApiSkipFilter(req: Request, _res: Response): boolean {
   return !/^\/?(atlas|atlasdb|ip|maps|states|timeservices|zoneloc)(\/|\?|$)/.test(req.baseUrl) ||
     (req.baseUrl === '/maps' && !/^\/ping(\/|$)/.test(req.url));
 }
@@ -145,22 +145,22 @@ class SvcApiConsole {
   }
 
   // noinspection JSMethodCanBeStatic
-  debug(...args: any) {
+  debug(...args: any): void {
     svcApiLogStream.write(getLogDate() + 'DEBUG' + argsToString(...args));
   }
 
   // noinspection JSMethodCanBeStatic
-  error(...args: any) {
+  error(...args: any): void {
     svcApiLogStream.write(getLogDate() + 'ERROR' + argsToString(...args));
   }
 
   // noinspection JSMethodCanBeStatic
-  info(...args: any) {
+  info(...args: any): void {
     svcApiLogStream.write(getLogDate() + 'INFO' + argsToString(...args));
   }
 
   // noinspection JSMethodCanBeStatic
-  log(...args: any) {
+  log(...args: any): void {
     svcApiLogStream.write(getLogDate() + 'LOG' + argsToString(...args));
   }
 
@@ -182,7 +182,7 @@ class SvcApiConsole {
   }
 
   // noinspection JSMethodCanBeStatic
-  warn(...args: any) {
+  warn(...args: any): void {
     svcApiLogStream.write(getLogDate() + 'WARN' + argsToString(...args));
   }
 }

@@ -34,7 +34,7 @@ export class MapClass<T, U> {
     return this;
   }
 
-  get size() { return this.map.size; }
+  get size(): number { return this.map.size; }
 
   get values(): U[] {
     return Array.from(this.map.values());

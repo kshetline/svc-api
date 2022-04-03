@@ -4,7 +4,7 @@ import { simplify } from './gazetteer';
 
 const zoneLookup: Record<string, string[]> = {};
 
-export async function initTimezones() {
+export async function initTimezones(): Promise<void> {
   const results: any[] = await pool.queryResults('SELECT location, zones FROM zone_lookup WHERE 1');
 
   results.forEach(result => {
@@ -24,12 +24,12 @@ export function getTimeZone(location: AtlasLocation): string {
   if ((!zones || zones.length > 1) && state) {
     key += ':' + simplify(state);
     zones2 = zoneLookup[key];
-    zones = (zones2 ? zones2 : zones);
+    zones = (zones2 || zones);
 
     if ((!zones || zones.length > 1) && county) {
       key += ':' + simplify(county);
       zones2 = zoneLookup[key];
-      zones = (zones2 ? zones2 : zones);
+      zones = (zones2 || zones);
     }
   }
 

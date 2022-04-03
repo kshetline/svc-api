@@ -36,9 +36,9 @@ app.use(morgan((tokens, req, res) => {
     tokens.res(req, res, 'content-length')
   ].join(' ');
 }, {
-    skip: svcApiSkipFilter,
-    stream: svcApiLogStream
-  }));
+  skip: svcApiSkipFilter,
+  stream: svcApiLogStream
+}));
 
 app.use('/atlas/', atlasRouter);
 app.use('/atlasdb/atlas/', atlasRouter); // Legacy Tomcat path
@@ -56,7 +56,7 @@ app.get('/', (req: Request, res: Response) => {
   res.send('Static home file not found');
 });
 
-(async () => {
+(async (): Promise<void> => {
   try {
     await initAtlas();
 

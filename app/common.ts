@@ -21,7 +21,7 @@ export function processMillis(): number {
   }
 }
 
-export function formatVariablePrecision(value: number, maxDecimals = 3) {
+export function formatVariablePrecision(value: number, maxDecimals = 3): string {
   let result = value.toFixed(maxDecimals);
 
   if (result.substr(-1) === '0')
@@ -30,22 +30,20 @@ export function formatVariablePrecision(value: number, maxDecimals = 3) {
   return result;
 }
 
-export function notFoundForEverythingElse(router: Router) {
+export function notFoundForEverythingElse(router: Router): void {
   router.get('*', (req: Request, res: Response) => notFound(res));
 }
 
-export const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => void) => (req: Request, res: Response, next: NextFunction) =>
-  Promise.resolve(fn(req, res, next)).catch(next);
+// noinspection JSVoidFunctionReturnValueUsed
+export const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => void) =>
+  (req: Request, res: Response, next: NextFunction): Promise<void> =>
+    Promise.resolve(fn(req, res, next)).catch(next);
 
-export function eqci (s1: string, s2: string): boolean {
-  return s1 === s2 || isNil(s1) && isNil(s2) || s1.localeCompare(s2, undefined, {usage: 'search', sensitivity: 'base'}) === 0;
+export function eqci(s1: string, s2: string): boolean {
+  return s1 === s2 || isNil(s1) && isNil(s2) || s1.localeCompare(s2, undefined, { usage: 'search', sensitivity: 'base' }) === 0;
 }
 
-export class PromiseTimeoutError extends Error {
-  constructor(message?: string) {
-    super(message);
-  }
-}
+export class PromiseTimeoutError extends Error {}
 
 export function timedPromise<T>(promise: Promise<T>, maxTime: number, errorResponse?: any): Promise<T> {
   if (typeof errorResponse === 'string')
@@ -65,7 +63,7 @@ export async function getFileContents(path: string, encoding?: string): Promise<
     let content = '';
 
     input.on('error', err => {
-      reject(`Error reading ${path}: ${err.toString()}`);
+      reject(new Error(`Error reading ${path}: ${err.toString()}`));
     });
     input.on('data', (data: Buffer) => {
       content += data.toString(encoding as any);

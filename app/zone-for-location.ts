@@ -18,7 +18,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     data = await requestJson(url);
   }
   catch (err) {
-    data = {status: 'ERROR', errorMessage: err.toString()};
+    data = { status: 'ERROR', errorMessage: err.toString() };
   }
 
   if (plainText) {
