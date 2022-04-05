@@ -3,6 +3,7 @@ import { processMillis, toBoolean, toNumber } from '@tubular/util';
 import { asyncHandler } from './common';
 import { requestJson } from 'by-request';
 import { pool } from './atlas_database';
+import { PoolConnection } from './mysql-await-async';
 
 export const router = Router();
 
@@ -20,8 +21,10 @@ export async function getTimezoneForLocation(lat: number, lon: number, time = 0)
   if (time === 0)
     time = Math.floor(processMillis() / 1000);
 
+  let connection: PoolConnection;
+
   try {
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
 
     zoneLoop:
     for (const span of [0.05, 0.1, 0.25, 0.5]) {
@@ -44,11 +47,20 @@ export async function getTimezoneForLocation(lat: number, lon: number, time = 0)
         }
       }
 
-      if (timeZoneName)
+      if (timeZoneName) {
+        connection.release();
         return { timeZoneName, country, status: 'OK', fromDb: true };
+      }
     }
   }
-  catch {}
+  catch {
+    if (connection) {
+      try {
+        connection.release();
+      }
+      catch {}
+    }
+  }
 
   const key = encodeURIComponent(process.env.GOOGLE_API_KEY);
   const url = `https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lon}&timestamp=${time}&key=${key}`;
