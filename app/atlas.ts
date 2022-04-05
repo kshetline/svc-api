@@ -1,6 +1,6 @@
 import { Request, Response, Router } from 'express';
 
-import { asyncHandler, MIN_EXTERNAL_SOURCE, notFoundForEverythingElse, processMillis, formatVariablePrecision } from './common';
+import { asyncHandler, MIN_EXTERNAL_SOURCE, notFoundForEverythingElse, formatVariablePrecision } from './common';
 import { doDataBaseSearch, hasSearchBeenDoneRecently, logMessage, logSearchResults, pool, updateAtlasDB } from './atlas_database';
 import {
   celestialNames, code2ToCode3, code3ToName, initGazetteer, LocationMap, longStates, ParsedSearchString, parseSearchString,
@@ -14,7 +14,8 @@ import { initTimezones } from './timezones';
 import { GeoNamesMetrics, geoNamesSearch } from './geo-names-search';
 import { svcApiConsole } from './svc-api-logger';
 import { PoolConnection } from './mysql-await-async';
-import { toInt, toBoolean, makePlainASCII_UC } from '@tubular/util';
+import { toInt, toBoolean, makePlainASCII_UC, processMillis } from '@tubular/util';
+import { PtvMetrics, ptvSearch } from './ptv-search';
 
 export const router = Router();
 
@@ -59,6 +60,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
   const q = req.query.q ? req.query.q.toString().trim() : 'Nashua, NH';
   const version = toInt(req.query.version, 9);
+  const lang = req.query.lang?.toString().trim().toLowerCase() || '';
   const callback = req.query.callback;
   const plainText = toBoolean(req.query.pt, false, true);
   const remoteMode = (/skip|normal|extend|forced|only|geonames|getty/i.test((req.query.remote ?? '').toString()) ?
@@ -76,9 +78,18 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   let consultRemoteData = false;
   let remoteResults: RemoteSearchResults;
   let dbMatchedOnlyBySound = false;
+  let langMatches: LocationMap;
   let dbMatches: LocationMap;
   let dbError: string;
   let gotBetterMatchesFromRemoteData = false;
+
+  if (lang && !lang.startsWith('en')) {
+    try {
+      langMatches = await ptvSearch(q, lang, {} as PtvMetrics);
+      langMatches.forEach(value => ++value.rank);
+    }
+    catch {}
+  }
 
   for (let attempt = 0; attempt < 2; ++attempt) {
     const connection = await pool.getConnection();
@@ -133,6 +144,9 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const mergedMatches = new LocationArrayMap();
+
+  if (langMatches)
+    copyAndMergeLocations(mergedMatches, langMatches);
 
   if (dbMatches)
     copyAndMergeLocations(mergedMatches, dbMatches);

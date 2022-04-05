@@ -1,6 +1,6 @@
 import { Request, Response, Router } from 'express';
-import { toBoolean, toNumber } from '@tubular/util';
-import { asyncHandler, processMillis } from './common';
+import { processMillis, toBoolean, toNumber } from '@tubular/util';
+import { asyncHandler } from './common';
 import { requestJson } from 'by-request';
 import { pool } from './atlas_database';
 
@@ -13,7 +13,6 @@ export interface TzInfo {
   fromDb?: boolean;
   rawOffset?: number;
   status?: string;
-  timeZoneId?: string;
   timeZoneName?: string;
 }
 

@@ -235,7 +235,7 @@ async function initFlagCodes(): Promise<void> {
 
 const VARIANT_START = /^((CANON DE|CERRO|FORT|FT|ILE D|ILE DE|ILE DU|ILES|ILSA|LA|LAKE|LAS|LE|LOS|MOUNT|MT|POINT|PT|THE) )(.*)/;
 
-export function simplify(s: string, asVariant = false): string {
+export function simplify(s: string, asVariant = false, processAbbreviations = true): string {
   if (!s)
     return s;
 
@@ -259,23 +259,25 @@ export function simplify(s: string, asVariant = false): string {
 
   s = sb.join('');
 
-  if (asVariant) {
-    const $ = VARIANT_START.exec(s);
+  if (processAbbreviations) {
+    if (asVariant) {
+      const $ = VARIANT_START.exec(s);
 
-    if ($)
-      s = $[3];
+      if ($)
+        s = $[3];
+    }
+    else if (s.startsWith('FORT '))
+      s = 'FT' + s.substring(5);
+    else if (s.startsWith('MOUNT '))
+      s = 'MT' + s.substring(6);
+    else if (s.startsWith('POINT '))
+      s = 'PT' + s.substring(6);
+
+    if (s.startsWith('SAINT '))
+      s = 'ST' + s.substring(6);
+    else if (s.startsWith('SAINTE '))
+      s = 'STE' + s.substring(7);
   }
-  else if (s.startsWith('FORT '))
-    s = 'FT' + s.substring(5);
-  else if (s.startsWith('MOUNT '))
-    s = 'MT' + s.substring(6);
-  else if (s.startsWith('POINT '))
-    s = 'PT' + s.substring(6);
-
-  if (s.startsWith('SAINT '))
-    s = 'ST' + s.substring(6);
-  else if (s.startsWith('SAINTE '))
-    s = 'STE' + s.substring(7);
 
   sb = [];
 

@@ -1,9 +1,9 @@
 import { closeMatchForCity, closeMatchForState, containsMatchingLocation, fixRearrangedName, getCode3ForCountry,
   getFlagCode, LocationMap, makeLocationKey, processPlaceNames } from './gazetteer';
-import { processMillis, SOURCE_GETTY_UPDATE, timedPromise } from './common';
+import { SOURCE_GETTY_UPDATE, timedPromise } from './common';
 import { AtlasLocation } from './atlas-location';
 import { getTimeZone } from './timezones';
-import { toNumber, toInt } from '@tubular/util';
+import { toNumber, toInt, processMillis } from '@tubular/util';
 import { requestText } from 'by-request';
 
 export interface GettyMetrics {
@@ -18,7 +18,7 @@ export interface GettyMetrics {
 
 const MAX_TIME_GETTY = 110; // seconds
 const PREFERRED_RETRIEVAL_TIME_GETTY = 40; // seconds
-const FAKE_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:66.0) Gecko/20100101 Firefox/66.0';
+const FAKE_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:98.0) Gecko/20100101 Firefox/98.0';
 
 export async function gettySearch(targetCity: string, targetState: string, metrics: GettyMetrics, noTrace: boolean): Promise<LocationMap> {
   return timedPromise(gettySearchAux(targetCity, targetState, metrics, noTrace), MAX_TIME_GETTY * 1000, 'Getty search timed out');

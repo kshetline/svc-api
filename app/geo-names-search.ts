@@ -2,12 +2,9 @@ import {
   closeMatchForCity, closeMatchForState, code2ToCode3, containsMatchingLocation, getFlagCode, LocationMap,
   makeLocationKey, processPlaceNames, standardizeShortCountyName
 } from './gazetteer';
-import {
-  processMillis, SOURCE_GEONAMES_GENERAL_UPDATE, SOURCE_GEONAMES_POSTAL_UPDATE,
-  timedPromise
-} from './common';
+import { SOURCE_GEONAMES_GENERAL_UPDATE, SOURCE_GEONAMES_POSTAL_UPDATE, timedPromise } from './common';
 import { AtlasLocation } from './atlas-location';
-import { toInt } from '@tubular/util';
+import { processMillis, toInt } from '@tubular/util';
 import { requestJson } from 'by-request';
 
 export interface GeoNamesMetrics {
@@ -17,7 +14,7 @@ export interface GeoNamesMetrics {
 }
 
 const MAX_TIME_GEONAMES = 20; // seconds
-const FAKE_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.14; rv:66.0) Gecko/20100101 Firefox/66.0';
+const FAKE_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:98.0) Gecko/20100101 Firefox/98.0';
 
 export async function geoNamesSearch(targetCity: string, targetState: string, postalCode: string, metrics: GeoNamesMetrics, noTrace: boolean): Promise<LocationMap> {
   return timedPromise(geoNamesSearchAux(targetCity, targetState, postalCode, metrics, noTrace), MAX_TIME_GEONAMES * 1000, 'GeoNames search timed out');

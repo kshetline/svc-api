@@ -2,7 +2,8 @@ import { Request, Response, Router } from 'express';
 import http from 'http';
 import querystring from 'querystring';
 import requestIp from 'request-ip';
-import { notFound, notFoundForEverythingElse, processMillis } from './common';
+import { notFound, notFoundForEverythingElse } from './common';
+import { processMillis } from '@tubular/util';
 
 export const router = Router();
 

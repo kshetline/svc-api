@@ -2,10 +2,10 @@ import { Request, Response, Router } from 'express';
 import https from 'https';
 // eslint-disable-next-line node/no-deprecated-api
 import { parse as parseUrl } from 'url';
-import { asyncHandler, escapeRegExp, getRemoteAddress, notFound, notFoundForEverythingElse,
-  processMillis } from './common';
+import { asyncHandler, escapeRegExp, getRemoteAddress, notFound, notFoundForEverythingElse } from './common';
 import { getPublicIp } from './public-ip';
 import { requestText } from 'by-request';
+import { processMillis } from '@tubular/util';
 
 export const router = Router();
 

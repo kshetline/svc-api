@@ -1,6 +1,6 @@
 import * as publicIp from 'public-ip';
-import { processMillis } from './common';
 import { svcApiConsole } from './svc-api-logger';
+import { processMillis } from '@tubular/util';
 
 const REFRESH_TIME = 3600000; // One hour
 
