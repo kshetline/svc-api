@@ -15,6 +15,7 @@ export interface TzInfo {
   fromDb?: boolean;
   rawOffset?: number;
   status?: string;
+  timeZoneId?: string;
   timeZoneName?: string;
 }
 
@@ -31,14 +32,14 @@ export async function getTimezoneForLocation(lat: number, lon: number, time = 0)
     for (const span of [0.05, 0.1, 0.25, 0.5]) {
       const query = 'SELECT time_zone, country FROM atlas2 WHERE latitude >= ? AND latitude <= ? AND longitude >= ? AND longitude <= ?';
       const results = (await connection.queryResults(query, [lat - span, lat + span, lon - span, lon + span])) || [];
-      let timeZoneName: string;
+      let timeZoneId: string;
       let country: string;
 
       for (const result of results) {
         if (result.time_zone) {
-          if (!timeZoneName)
-            timeZoneName = result.time_zone;
-          else if (timeZoneName !== result.time_zone)
+          if (!timeZoneId)
+            timeZoneId = result.time_zone;
+          else if (timeZoneId !== result.time_zone)
             break zoneLoop;
 
           if (!country)
@@ -48,12 +49,12 @@ export async function getTimezoneForLocation(lat: number, lon: number, time = 0)
         }
       }
 
-      if (timeZoneName) {
+      if (timeZoneId) {
         connection.release();
-        const zone = Timezone.getTimezone(timeZoneName);
+        const zone = Timezone.getTimezone(timeZoneId);
 
         return {
-          timeZoneName,
+          timeZoneId,
           country,
           dstOffset: zone.dstOffset,
           rawOffset: zone.utcOffset,
