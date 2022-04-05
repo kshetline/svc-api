@@ -4,6 +4,7 @@ import { asyncHandler } from './common';
 import { requestJson } from 'by-request';
 import { pool } from './atlas_database';
 import { PoolConnection } from './mysql-await-async';
+import { Timezone } from '@tubular/time';
 
 export const router = Router();
 
@@ -49,7 +50,16 @@ export async function getTimezoneForLocation(lat: number, lon: number, time = 0)
 
       if (timeZoneName) {
         connection.release();
-        return { timeZoneName, country, status: 'OK', fromDb: true };
+        const zone = Timezone.getTimezone(timeZoneName);
+
+        return {
+          timeZoneName,
+          country,
+          dstOffset: zone.dstOffset,
+          rawOffset: zone.utcOffset,
+          status: 'OK',
+          fromDb: true
+        };
       }
     }
   }
