@@ -15,7 +15,6 @@ import { GeoNamesMetrics, geoNamesSearch } from './geo-names-search';
 import { svcApiConsole } from './svc-api-logger';
 import { PoolConnection } from './mysql-await-async';
 import { toInt, toBoolean, makePlainASCII_UC, processMillis } from '@tubular/util';
-import { PtvMetrics, ptvSearch } from './ptv-search';
 
 export const router = Router();
 
@@ -60,7 +59,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
   const q = req.query.q ? req.query.q.toString().trim() : 'Nashua, NH';
   const version = toInt(req.query.version, 9);
-  const lang = req.query.lang?.toString().trim().toLowerCase() || '';
+  // const lang = req.query.lang?.toString().trim().toLowerCase() || '';
   const callback = req.query.callback;
   const plainText = toBoolean(req.query.pt, false, true);
   const remoteMode = (/skip|normal|extend|forced|only|geonames|getty/i.test((req.query.remote ?? '').toString()) ?
@@ -78,18 +77,10 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   let consultRemoteData = false;
   let remoteResults: RemoteSearchResults;
   let dbMatchedOnlyBySound = false;
-  let langMatches: LocationMap;
+  // let langMatches: LocationMap;
   let dbMatches: LocationMap;
   let dbError: string;
   let gotBetterMatchesFromRemoteData = false;
-
-  if (lang && !lang.startsWith('en')) {
-    try {
-      langMatches = await ptvSearch(q, lang, {} as PtvMetrics);
-      langMatches.forEach(value => ++value.rank);
-    }
-    catch {}
-  }
 
   for (let attempt = 0; attempt < 2; ++attempt) {
     const connection = await pool.getConnection();
@@ -106,7 +97,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
       dbMatches = undefined;
     else {
       try {
-        dbMatches = await doDataBaseSearch(connection, parsed, extend, limit + 1);
+        dbMatches = await doDataBaseSearch(connection, parsed, extend, limit + 1, true); // , langMatches.size === 0);
         dbMatchedOnlyBySound = true;
 
         for (const location of dbMatches.values) {
@@ -145,8 +136,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
   const mergedMatches = new LocationArrayMap();
 
-  if (langMatches)
-    copyAndMergeLocations(mergedMatches, langMatches);
+  // if (langMatches)
+  //   copyAndMergeLocations(mergedMatches, langMatches);
 
   if (dbMatches)
     copyAndMergeLocations(mergedMatches, dbMatches);

@@ -6,7 +6,6 @@ export const MIN_EXTERNAL_SOURCE = 100;
 export const SOURCE_GEONAMES_POSTAL_UPDATE  = 101;
 export const SOURCE_GEONAMES_GENERAL_UPDATE = 103;
 export const SOURCE_GETTY_UPDATE = 104;
-export const SOURCE_PTV = 105;
 
 export function notFound(res: Response): void {
   res.status(403).send('Not found');

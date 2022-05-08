@@ -100,7 +100,8 @@ export async function logSearchResults(connection: PoolConnection, searchStr: st
   return found;
 }
 
-export async function doDataBaseSearch(connection: PoolConnection, parsed: ParsedSearchString, extendedSearch: boolean, maxMatches: number): Promise<LocationMap> {
+export async function doDataBaseSearch(connection: PoolConnection, parsed: ParsedSearchString, extendedSearch: boolean,
+                                       maxMatches: number, canMatchBySound = true): Promise<LocationMap> {
   const simplifiedCity = simplify(parsed.targetCity);
   const examined = new Set<number>();
   const matches = new LocationMap();
@@ -166,7 +167,7 @@ export async function doDataBaseSearch(connection: PoolConnection, parsed: Parse
           break;
 
         case MatchType.SOUNDS_LIKE:
-          if (/\d/.test(parsed.targetCity))
+          if (/\d/.test(parsed.targetCity) || !canMatchBySound)
             continue;
 
           rankAdjust = -1;
